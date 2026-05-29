@@ -464,3 +464,14 @@ INSERT INTO `users` VALUES (4, 'seller1', '$2a$10$xyz...', 'shop1@gmail.com', '0
 INSERT INTO `users` VALUES (5, 'seller2', '$2a$10$xyz...', 'shop2@gmail.com', '0808080808', 'SELLER', 'ACTIVE', 'Phạm Thợ May', 'https://via.placeholder.com/150', '2026-05-18 19:34:50');
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE cart_items (
+                            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                            user_id BIGINT NOT NULL,
+                            product_id BIGINT NOT NULL,
+                            variant_id BIGINT NOT NULL,
+                            quantity INT NOT NULL,
+                            rent_or_sale VARCHAR(10) NOT NULL, -- Giá trị: 'RENT' hoặc 'SALE'
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
