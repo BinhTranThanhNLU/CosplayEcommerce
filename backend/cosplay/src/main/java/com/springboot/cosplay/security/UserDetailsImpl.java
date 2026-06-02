@@ -19,6 +19,10 @@ public class UserDetailsImpl implements UserDetails {
         this.user = user;
     }
 
+    public User getUser() {
+        return user;
+    }
+
     @Override
     public @NonNull Collection<? extends GrantedAuthority> getAuthorities() {
         if (user.getRole() == null) {
