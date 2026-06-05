@@ -1,4 +1,4 @@
-import type { UserDTO } from "../model/AuthModel";
+import type { UserDTO } from "../model/UserModel";
 
 const TOKEN_KEY = "token";
 const USER_KEY = "user";

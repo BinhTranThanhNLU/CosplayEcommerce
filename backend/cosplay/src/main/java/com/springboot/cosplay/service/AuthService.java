@@ -24,11 +24,53 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final EmailService emailService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.emailService = emailService;
+    }
+
+    // Quên mật khẩu (Tạo token và "gửi mail")
+    public void forgotPassword(String email) {
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            return;
+        }
+
+        // Sinh ra một JWT token thời hạn ngắn (15 phút)
+        String resetToken = jwtService.generateResetPasswordToken(email);
+
+        // Gửi email thực tế chứa link reset
+        emailService.sendResetPasswordEmail(user.getEmail(), resetToken);
+    }
+
+    // Đặt lại mật khẩu
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        // 1. Lấy email từ token (jwtService tự kiểm tra token hết hạn chưa)
+        String email;
+        try {
+            email = jwtService.extractEmail(token);
+        } catch (Exception e) {
+            throw new RuntimeException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
+        }
+
+        if (!jwtService.isResetPasswordTokenValid(token, email)) {
+            throw new RuntimeException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạnn");
+        }
+
+        // 2. Tìm user
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new RuntimeException("Không tìm thấy người dùng");
+        }
+
+        // 3. Cập nhật mật khẩu mới
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
     }
 
     public LoginResponse login(String email, String rawPassword) {
