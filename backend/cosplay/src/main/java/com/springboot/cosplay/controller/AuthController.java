@@ -1,9 +1,6 @@
 package com.springboot.cosplay.controller;
 
-import com.springboot.cosplay.requestDto.ForgotPasswordRequest;
-import com.springboot.cosplay.requestDto.LoginRequest;
-import com.springboot.cosplay.requestDto.RegisterRequest;
-import com.springboot.cosplay.requestDto.ResetPasswordRequest;
+import com.springboot.cosplay.requestDto.*;
 import com.springboot.cosplay.responseDto.LoginResponse;
 import com.springboot.cosplay.service.AuthService;
 import jakarta.validation.Valid;
@@ -22,6 +19,12 @@ public class AuthController {
 
     public AuthController(AuthService authService) {
         this.authService = authService;
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<LoginResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        LoginResponse response = authService.loginWithGoogle(request.getCredential());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")

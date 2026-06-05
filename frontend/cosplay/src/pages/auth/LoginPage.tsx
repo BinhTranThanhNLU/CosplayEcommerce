@@ -2,9 +2,10 @@ import { useState, type ChangeEvent, type FormEvent } from "react";
 import axios from "axios";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthShell } from "../../components/Auth/AuthShell";
-import { login } from "../../apis/authApi";
+import { login, loginWithGoogleToken } from "../../apis/authApi";
 import { saveAuthSession } from "../../utils/authStorage";
 import { Eye, EyeOff } from "lucide-react";
+import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 
 type LoginValues = {
   email: string;
@@ -50,7 +51,10 @@ const mapLoginServerError = (message: string): LoginErrors => {
     return { email: message };
   }
 
-  if (normalizedMessage.includes("mật khẩu") || normalizedMessage.includes("password")) {
+  if (
+    normalizedMessage.includes("mật khẩu") ||
+    normalizedMessage.includes("password")
+  ) {
     return { password: message };
   }
 
@@ -81,22 +85,24 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const shouldShowError = (field: keyof LoginValues) => submitted || touched[field];
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-  const handleChange = (field: keyof LoginValues) => (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const nextValues = { ...values, [field]: event.target.value };
-    setValues(nextValues);
+  const shouldShowError = (field: keyof LoginValues) =>
+    submitted || touched[field];
 
-    if (submitted || touched[field]) {
-      setErrors(validateLoginValues(nextValues));
-    }
+  const handleChange =
+    (field: keyof LoginValues) => (event: ChangeEvent<HTMLInputElement>) => {
+      const nextValues = { ...values, [field]: event.target.value };
+      setValues(nextValues);
 
-    if (generalError) {
-      setGeneralError("");
-    }
-  };
+      if (submitted || touched[field]) {
+        setErrors(validateLoginValues(nextValues));
+      }
+
+      if (generalError) {
+        setGeneralError("");
+      }
+    };
 
   const handleBlur = (field: keyof LoginValues) => {
     const nextTouched = { ...touched, [field]: true };
@@ -127,7 +133,9 @@ export default function LoginPage() {
       navigate("/", { replace: true });
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const message = (error.response?.data as { message?: string } | undefined)?.message;
+        const message = (
+          error.response?.data as { message?: string } | undefined
+        )?.message;
 
         if (message) {
           const mappedErrors = mapLoginServerError(message);
@@ -151,154 +159,218 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    if (!credentialResponse.credential) {
+      setGeneralError("Không nhận được mã xác thực từ Google.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setGeneralError("");
+
+      // Gọi API gửi credential
+      const response = await loginWithGoogleToken({
+        credential: credentialResponse.credential,
+      });
+
+      // Lưu Session vào LocalStorage theo hàm util bạn đã viết
+      saveAuthSession({ token: response.token, user: response.user });
+
+      // Chuyển hướng về trang chủ
+      navigate("/", { replace: true });
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = (
+          error.response?.data as { message?: string } | undefined
+        )?.message;
+        if (message) {
+          setGeneralError(message);
+          return;
+        }
+      }
+      setGeneralError("Đăng nhập bằng Google thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <AuthShell
-      title="Đăng nhập"
-      description="Truy cập tài khoản để theo dõi đơn hàng, lưu trang phục yêu thích và nhận ưu đãi dành riêng cho bạn."
-      imageSrc="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1400&h=1800&fit=crop"
-      imageAlt="Không gian cosplay nghệ thuật"
-      imageLabel="Tài khoản"
-      imageTitle="Đăng nhập để tiếp tục mua sắm."
-      stats={loginStats}
-    >
-      <form className="space-y-5" noValidate onSubmit={handleSubmit}>
-        {successMessage ? (
-          <div className="rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 text-sm text-brand-foreground">
-            {successMessage}
-          </div>
-        ) : null}
-
-        {generalError ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {generalError}
-          </div>
-        ) : null}
-
-        <div className="space-y-2">
-          <label htmlFor="login-email" className="text-sm text-foreground">
-            Email
-          </label>
-          <div className="relative">
-            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">
-              @
-            </span>
-            <input
-              id="login-email"
-              type="text"
-              inputMode="email"
-              autoComplete="email"
-              placeholder="ban@cosplay.vn"
-              value={values.email}
-              onChange={handleChange("email")}
-              onBlur={() => handleBlur("email")}
-              aria-invalid={shouldShowError("email")}
-              aria-describedby={errors.email ? "login-email-error" : undefined}
-              className={`h-11 w-full rounded-xl border bg-background pr-4 pl-10 text-sm text-foreground outline-none transition-colors focus:border-primary ${
-                shouldShowError("email") && errors.email
-                  ? "border-destructive focus:border-destructive"
-                  : "border-border"
-              }`}
-            />
-          </div>
-          {shouldShowError("email") && errors.email ? (
-            <p id="login-email-error" className="text-xs text-destructive">
-              {errors.email}
-            </p>
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <AuthShell
+        title="Đăng nhập"
+        description="Truy cập tài khoản để theo dõi đơn hàng, lưu trang phục yêu thích và nhận ưu đãi dành riêng cho bạn."
+        imageSrc="https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1400&h=1800&fit=crop"
+        imageAlt="Không gian cosplay nghệ thuật"
+        imageLabel="Tài khoản"
+        imageTitle="Đăng nhập để tiếp tục mua sắm."
+        stats={loginStats}
+      >
+        <form className="space-y-5" noValidate onSubmit={handleSubmit}>
+          {successMessage ? (
+            <div className="rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 text-sm text-brand-foreground">
+              {successMessage}
+            </div>
           ) : null}
-        </div>
 
-        <div className="space-y-2">
-          <label htmlFor="login-password" className="text-sm text-foreground">
-            Mật khẩu
-          </label>
-          <div className="relative">
-            <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">
-              🔒
+          {generalError ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {generalError}
+            </div>
+          ) : null}
+
+          {/* Email Input */}
+          <div className="space-y-2">
+            <label htmlFor="login-email" className="text-sm text-foreground">
+              Email
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">
+                @
+              </span>
+              <input
+                id="login-email"
+                type="text"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="ban@cosplay.vn"
+                value={values.email}
+                onChange={handleChange("email")}
+                onBlur={() => handleBlur("email")}
+                aria-invalid={shouldShowError("email")}
+                aria-describedby={
+                  errors.email ? "login-email-error" : undefined
+                }
+                className={`h-11 w-full rounded-xl border bg-background pr-4 pl-10 text-sm text-foreground outline-none transition-colors focus:border-primary ${
+                  shouldShowError("email") && errors.email
+                    ? "border-destructive focus:border-destructive"
+                    : "border-border"
+                }`}
+              />
+            </div>
+            {shouldShowError("email") && errors.email ? (
+              <p id="login-email-error" className="text-xs text-destructive">
+                {errors.email}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Password Input */}
+          <div className="space-y-2">
+            <label htmlFor="login-password" className="text-sm text-foreground">
+              Mật khẩu
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground">
+                🔒
+              </span>
+              <input
+                id="login-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="Nhập mật khẩu"
+                value={values.password}
+                onChange={handleChange("password")}
+                onBlur={() => handleBlur("password")}
+                aria-invalid={shouldShowError("password")}
+                aria-describedby={
+                  errors.password ? "login-password-error" : undefined
+                }
+                className={`h-11 w-full rounded-xl border bg-background pr-12 pl-10 text-sm text-foreground outline-none transition-colors focus:border-primary ${
+                  shouldShowError("password") && errors.password
+                    ? "border-destructive focus:border-destructive"
+                    : "border-border"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            {shouldShowError("password") && errors.password ? (
+              <p id="login-password-error" className="text-xs text-destructive">
+                {errors.password}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                id="remember-me"
+                type="checkbox"
+                className="size-4 rounded border-border"
+              />
+              <span>Ghi nhớ đăng nhập</span>
+            </label>
+            <Link
+              to="/forgot-password"
+              className="text-sm font-medium text-brand transition-colors hover:text-brand/80"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="h-11 w-full rounded-full bg-primary text-base font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSubmitting ? "Đang xử lý..." : "Đăng nhập"}
+          </button>
+
+          <div className="flex items-center gap-4 py-1">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs tracking-[0.22em] text-muted-foreground uppercase">
+              {" "}
+              Hoặc{" "}
             </span>
-            <input
-              id="login-password"
-              type={showPassword ? "text" : "password"}
-              autoComplete="current-password"
-              placeholder="Nhập mật khẩu"
-              value={values.password}
-              onChange={handleChange("password")}
-              onBlur={() => handleBlur("password")}
-              aria-invalid={shouldShowError("password")}
-              aria-describedby={errors.password ? "login-password-error" : undefined}
-              className={`h-11 w-full rounded-xl border bg-background pr-12 pl-10 text-sm text-foreground outline-none transition-colors focus:border-primary ${
-                shouldShowError("password") && errors.password
-                  ? "border-destructive focus:border-destructive"
-                  : "border-border"
-              }`}
-            />
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          {/* Khu vực nút liên kết mạng xã hội */}
+          <div className="flex flex-col gap-3">
+            {/* Component nút bấm Google chuẩn bảo mật */}
+            <div className="w-full flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() =>
+                  setGeneralError("Đăng nhập bằng Google thất bại")
+                }
+                theme="outline"
+                shape="circle"
+                width="100%"
+                text="signin_with"
+              />
+            </div>
+
             <button
               type="button"
-              onClick={() => setShowPassword((current) => !current)}
-              className="absolute top-1/2 right-3 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-              aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+              className="h-10 w-full rounded-full border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              Tiếp tục với Apple
             </button>
           </div>
-          {shouldShowError("password") && errors.password ? (
-            <p id="login-password-error" className="text-xs text-destructive">
-              {errors.password}
-            </p>
-          ) : null}
-        </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex items-center gap-2 text-sm text-muted-foreground">
-            <input id="remember-me" type="checkbox" className="size-4 rounded border-border" />
-            <span>Ghi nhớ đăng nhập</span>
-          </label>
-
-          <Link
-            to="/forgot-password"
-            className="text-sm font-medium text-brand transition-colors hover:text-brand/80"
-          >
-            Quên mật khẩu?
-          </Link>
-        </div>
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="h-11 w-full rounded-full bg-primary text-base font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
-        </button>
-
-        <div className="flex items-center gap-4 py-1">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs tracking-[0.22em] text-muted-foreground uppercase">
-            Hoặc
-          </span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            className="h-11 rounded-full border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
-            Google
-          </button>
-          <button
-            type="button"
-            className="h-11 rounded-full border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
-            Apple
-          </button>
-        </div>
-
-        <p className="pt-2 text-center text-sm text-muted-foreground">
-          Chưa có tài khoản?{" "}
-          <Link to="/register" className="font-medium text-brand hover:text-brand/80">
-            Đăng ký ngay
-          </Link>
-        </p>
-      </form>
-    </AuthShell>
+          <p className="pt-2 text-center text-sm text-muted-foreground">
+            Chưa có tài khoản?{" "}
+            <Link
+              to="/register"
+              className="font-medium text-brand hover:text-brand/80"
+            >
+              Đăng ký ngay
+            </Link>
+          </p>
+        </form>
+      </AuthShell>
+    </GoogleOAuthProvider>
   );
 }
