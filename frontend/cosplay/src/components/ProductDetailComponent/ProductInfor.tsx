@@ -1,5 +1,6 @@
 // ProductInfo.tsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ShoppingCart,
   Heart,
@@ -10,6 +11,8 @@ import {
 } from "lucide-react";
 import { formatPrice } from "../utils/Format";
 import type { Product } from "../../types/ProductDetailType";
+import { addToCart } from "../../apis/cartApi";
+import { getStoredAuthSession } from "../../utils/authStorage";
 
 type ProductInfoProps = {
   product: Product;
@@ -19,6 +22,11 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
   const [mode, setMode] = useState<"buy" | "rent">("buy");
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [rentDays, setRentDays] = useState(3);
+  const [quantity, setQuantity] = useState(1);
+  const [isAdding, setIsAdding] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const salePrices =
     product.variants?.map((variant) => variant.salePrice).filter((price) => price > 0) ?? [];
@@ -29,7 +37,24 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
   const rentPrice = product.rentPrice ?? rentPrices[0] ?? 0;
   const canRent = product.canRent ?? rentPrice > 0;
 
-  const currentPrice = mode === "buy" ? buyPrice : rentPrice * rentDays;
+  const sizes = useMemo(() => {
+    const variantSizes = product.variants?.map((variant) => variant.size).filter(Boolean) ?? [];
+    return product.sizes?.length ? product.sizes : Array.from(new Set(variantSizes));
+  }, [product.sizes, product.variants]);
+
+  const selectedVariant = useMemo(() => {
+    if (!product.variants?.length) {
+      return null;
+    }
+
+    if (selectedSize) {
+      return product.variants.find((variant) => variant.size === selectedSize) ?? product.variants[0];
+    }
+
+    return product.variants[0];
+  }, [product.variants, selectedSize]);
+
+  const currentPrice = mode === "buy" ? (selectedVariant?.salePrice ?? buyPrice) : rentPrice * rentDays;
   const discountPct = product.originalPrice && buyPrice > 0
     ? Math.round((1 - buyPrice / product.originalPrice) * 100)
     : null;
@@ -94,8 +119,8 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
               >
                 <div className="text-base font-bold">
                   {m === "buy"
-                    ? formatPrice(product.price)
-                    : `${formatPrice(product.rentPrice ?? 0)}/ngày`}
+                    ? formatPrice(buyPrice)
+                    : `${formatPrice(rentPrice)}/ngày`}
                 </div>
                 <div className="text-xs opacity-70">
                   {m === "buy" ? "Mua trực tiếp" : "Thuê trang phục"}
@@ -162,7 +187,7 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
           </a>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(product.sizes ?? []).map((size) => (
+          {sizes.map((size) => (
             <button
               key={size}
               onClick={() => setSelectedSize(size)}
@@ -175,17 +200,70 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
               {size}
             </button>
           ))}
-          {(product.sizes?.length ?? 0) === 0 && (
+          {sizes.length === 0 && (
             <p className="text-sm text-muted-foreground">Chưa có size khả dụng</p>
           )}
         </div>
       </div>
 
+      {/* Quantity */}
+      <div className="flex items-center gap-3">
+        <p className="text-sm font-medium">Số lượng</p>
+        <div className="flex items-center overflow-hidden rounded-full border border-border">
+          <button
+            type="button"
+            onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+            className="h-9 w-10 text-lg hover:bg-muted"
+          >
+            -
+          </button>
+          <span className="w-10 text-center text-sm font-semibold">{quantity}</span>
+          <button
+            type="button"
+            onClick={() => setQuantity((value) => value + 1)}
+            className="h-9 w-10 text-lg hover:bg-muted"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {message && <p className="text-sm font-medium text-primary">{message}</p>}
+      {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+
       {/* Action Buttons */}
       <div className="flex flex-col gap-2">
-        <button className="flex items-center justify-center rounded-full bg-primary px-4 py-3 text-white transition-opacity hover:opacity-90">
+        <button
+          disabled={isAdding || !selectedVariant || mode !== "buy"}
+          onClick={async () => {
+            setMessage(null);
+            setError(null);
+
+            const session = getStoredAuthSession();
+            if (!session.token) {
+              navigate("/login", { state: { message: "Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng." } });
+              return;
+            }
+
+            if (!selectedVariant) {
+              setError("Vui lòng chọn phân loại sản phẩm.");
+              return;
+            }
+
+            try {
+              setIsAdding(true);
+              await addToCart(selectedVariant.id, quantity);
+              setMessage("Đã thêm vào giỏ hàng.");
+            } catch (err: any) {
+              setError(err?.response?.data?.message || "Không thể thêm vào giỏ hàng.");
+            } finally {
+              setIsAdding(false);
+            }
+          }}
+          className="flex items-center justify-center rounded-full bg-primary px-4 py-3 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
           <ShoppingCart className="mr-2 size-4" />
-          {mode === "buy" ? "Thêm vào giỏ hàng" : `Đặt thuê ${rentDays} ngày`}
+          {isAdding ? "Đang thêm..." : mode === "buy" ? "Thêm vào giỏ hàng" : `Đặt thuê ${rentDays} ngày`}
         </button>
         <button className="flex items-center justify-center rounded-full border px-4 py-3 transition-colors hover:bg-muted">
           <Heart className="mr-2 size-4" />
