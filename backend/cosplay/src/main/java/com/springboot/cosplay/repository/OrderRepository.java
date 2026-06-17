@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     // Tìm kiếm kết hợp: keyword (id/tên khách/tên shop) + status
@@ -32,4 +35,10 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = 'COMPLETED'")
     long sumCompletedRevenue();
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = 'COMPLETED' AND o.createdAt >= :from")
+    long sumCompletedRevenueAfter(@Param("from") LocalDateTime from);
+
+    // 5 đơn mới nhất
+    List<Order> findTop5ByOrderByCreatedAtDesc();
 }

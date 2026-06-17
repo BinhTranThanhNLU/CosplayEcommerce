@@ -1,381 +1,315 @@
-"use client"
-
-import {
-  DollarSign,
-  Clock,
-  Scissors,
-  CheckCircle2,
-  Activity,
-  AlertCircle,
-  TrendingUp,
-  Users,
-  ArrowUpRight,
-} from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+    Users, ShoppingCart, DollarSign, TrendingUp,
+    Clock, Package, Truck, CheckCircle2, XCircle,
+    ArrowUpRight, Store, Ban, UserCheck,
+} from "lucide-react";
 
-// Mock data
-const stats = [
-  {
-    label: "Doanh thu dự kiến",
-    value: "1.450B",
-    change: "+18.4%",
-    isPositive: true,
-    icon: DollarSign,
-  },
-  {
-    label: "Đơn thuê hoạt động",
-    value: "482",
-    change: "+12.5%",
-    isPositive: true,
-    icon: Clock,
-  },
-  {
-    label: "May mới trong ngày",
-    value: "12",
-    change: "-2.1%",
-    isPositive: false,
-    icon: Scissors,
-  },
-  {
-    label: "Tỷ lệ hoàn thành",
-    value: "94.2%",
-    change: "+5.7%",
-    isPositive: true,
-    icon: CheckCircle2,
-  },
-]
+import StatCard from "./stat-card";
+import { getDashboardStats, type DashboardStatsResponse } from "../../../apis/dashboardApi";
+import type { OrderDTO } from "../../../apis/orderApi";
 
-const tailoringOrders = [
-  {
-    id: "#MK-5521",
-    character: "Genshin Impact - Raiden Shogun",
-    client: "Ngô Thanh Vân",
-    progress: 75,
-    step: "Gắn phụ kiện LED",
-    dueDate: "Còn 3 ngày",
-    isDelayed: false,
-  },
-  {
-    id: "#MK-5548",
-    character: "League of Legends - Ahri",
-    client: "Phạm Bảo Nhi",
-    progress: 40,
-    step: "Dựng form váy & đuôi",
-    dueDate: "Còn 12 ngày",
-    isDelayed: true,
-  },
-  {
-    id: "#MK-5582",
-    character: "Fate/Stay Night - Saber",
-    client: "Lâm Tuấn Kiệt",
-    progress: 95,
-    step: "Kiểm tra lần cuối",
-    dueDate: "Ngày mai",
-    isDelayed: false,
-  },
-]
+// ─── Status config ────────────────────────────────────────────────────────────
+const STATUS_CFG: Record<string, { label: string; cls: string }> = {
+    PENDING:    { label: "Chờ xác nhận", cls: "bg-amber-100 text-amber-700"   },
+    PROCESSING: { label: "Đang xử lý",   cls: "bg-blue-100 text-blue-700"     },
+    SHIPPED:    { label: "Đang giao",     cls: "bg-indigo-100 text-indigo-700" },
+    COMPLETED:  { label: "Hoàn thành",   cls: "bg-emerald-100 text-emerald-700"},
+    CANCELLED:  { label: "Đã hủy",       cls: "bg-rose-100 text-rose-600"     },
+};
 
-const rentalDeadlines = [
-  {
-    id: "RT-4421",
-    name: "Trần Thúy Vy",
-    item: "Kimono Demon Slayer",
-    time: "2 giờ nữa",
-    urgency: "high" as const,
-  },
-  {
-    id: "RT-4425",
-    name: "Lê Quốc Bảo",
-    item: "Giáp Master Chief",
-    time: "Hôm nay, 18:00",
-    urgency: "medium" as const,
-  },
-  {
-    id: "RT-4430",
-    name: "Nguyễn Hà My",
-    item: "Váy Lolita Pinky",
-    time: "Ngày mai",
-    urgency: "low" as const,
-  },
-]
+const fmtVnd = (n: number) => {
+    if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
+    if (n >= 1_000_000)     return (n / 1_000_000).toFixed(1) + "M";
+    if (n >= 1_000)         return (n / 1_000).toFixed(0) + "K";
+    return n.toLocaleString("vi-VN");
+};
 
-const topSellers = [
-  { name: "Wibu Shop", sales: "154 đơn", growth: "+12%", avatar: "W" },
-  { name: "Cosplay Pro", sales: "122 đơn", growth: "+8%", avatar: "C" },
-  { name: "Moe Costume", sales: "98 đơn", growth: "-2%", avatar: "M" },
-]
+const fmtDate = (s: string) => new Date(s).toLocaleDateString("vi-VN");
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+function Skeleton({ className }: { className?: string }) {
+    return <div className={`animate-pulse rounded-xl bg-slate-100 ${className}`} />;
+}
+
+// ─── Recent order row ─────────────────────────────────────────────────────────
+function RecentOrderRow({ order }: { order: OrderDTO }) {
+    const cfg = STATUS_CFG[order.status] ?? { label: order.status, cls: "bg-slate-100 text-slate-600" };
+    return (
+        <tr className="group border-t border-slate-100 transition hover:bg-slate-50">
+            <td className="px-4 py-3">
+                <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">
+                    #{order.id}
+                </span>
+            </td>
+            <td className="px-4 py-3">
+                <p className="text-sm font-bold text-slate-800">{order.customerName || "—"}</p>
+                <p className="text-[11px] text-slate-400">{order.customerEmail || "—"}</p>
+            </td>
+            <td className="px-4 py-3 text-sm text-slate-500">{order.shopName || "—"}</td>
+            <td className="px-4 py-3">
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${cfg.cls}`}>
+                    {cfg.label}
+                </span>
+            </td>
+            <td className="px-4 py-3 text-right text-sm font-black text-slate-800">
+                {order.totalAmount.toLocaleString("vi-VN")}đ
+            </td>
+            <td className="px-4 py-3 text-xs text-slate-400">{fmtDate(order.createdAt)}</td>
+        </tr>
+    );
+}
+
+// ─── Order status mini bar ────────────────────────────────────────────────────
+function OrderStatusBar({ stats }: { stats: DashboardStatsResponse }) {
+    const total = stats.totalOrders || 1;
+    const bars = [
+        { key: "pendingOrders",    label: "Chờ xác nhận", color: "bg-amber-400"   },
+        { key: "processingOrders", label: "Xử lý",        color: "bg-blue-500"    },
+        { key: "shippedOrders",    label: "Giao hàng",    color: "bg-indigo-500"  },
+        { key: "completedOrders",  label: "Hoàn thành",   color: "bg-emerald-500" },
+        { key: "cancelledOrders",  label: "Đã hủy",       color: "bg-rose-400"    },
+    ] as const;
+
+    return (
+        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-sm font-black text-slate-800">Phân bổ đơn hàng</h3>
+            {/* Stacked bar */}
+            <div className="flex h-3 overflow-hidden rounded-full">
+                {bars.map((b) => {
+                    const count = stats[b.key as keyof DashboardStatsResponse] as number;
+                    const pct   = (count / total) * 100;
+                    return pct > 0 ? (
+                        <div key={b.key} className={`${b.color} transition-all`} style={{ width: `${pct}%` }} />
+                    ) : null;
+                })}
+            </div>
+            {/* Legend */}
+            <div className="mt-4 flex flex-wrap gap-3">
+                {bars.map((b) => {
+                    const count = stats[b.key as keyof DashboardStatsResponse] as number;
+                    return (
+                        <div key={b.key} className="flex items-center gap-1.5">
+                            <div className={`h-2.5 w-2.5 rounded-full ${b.color}`} />
+                            <span className="text-xs text-slate-500">{b.label}</span>
+                            <span className="text-xs font-black text-slate-800">{count}</span>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ─── User breakdown ───────────────────────────────────────────────────────────
+function UserBreakdown({ stats }: { stats: DashboardStatsResponse }) {
+    const items = [
+        { label: "Khách hàng", value: stats.totalCustomers, icon: UserCheck, color: "text-blue-600",   bg: "bg-blue-50"   },
+        { label: "Seller",     value: stats.totalSellers,   icon: Store,     color: "text-amber-600",  bg: "bg-amber-50"  },
+        { label: "Bị khóa",    value: stats.bannedUsers,    icon: Ban,       color: "text-rose-600",   bg: "bg-rose-50"   },
+    ];
+    return (
+        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-sm font-black text-slate-800">Phân loại người dùng</h3>
+            <div className="space-y-3">
+                {items.map((item) => {
+                    const pct = stats.totalUsers > 0 ? Math.round((item.value / stats.totalUsers) * 100) : 0;
+                    const Icon = item.icon;
+                    return (
+                        <div key={item.label}>
+                            <div className="mb-1 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className={`rounded-lg p-1.5 ${item.bg}`}>
+                                        <Icon size={13} className={item.color} />
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-600">{item.label}</span>
+                                </div>
+                                <span className="text-xs font-black text-slate-800">
+                                    {item.value.toLocaleString("vi-VN")} <span className="font-normal text-slate-400">({pct}%)</span>
+                                </span>
+                            </div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                    className={`h-full rounded-full transition-all ${item.bg.replace("bg-", "bg-").replace("-50", "-400")}`}
+                                    style={{ width: `${pct}%` }}
+                                />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function DashboardOverview() {
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            Trung tâm Điều hành
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Tổng quan hoạt động hệ thống
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" size="sm">
-            Tổng quan
-          </Button>
-          <Button variant="default" size="sm">
-            Tạo thông báo
-          </Button>
-        </div>
-      </div>
+    const [stats,   setStats]   = useState<DashboardStatsResponse | null>(null);
+    const [loading, setLoading] = useState(true);
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <Card key={stat.label} className="border-border/60">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.label}
-                </CardTitle>
-                <div className="rounded-full bg-muted p-2">
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-foreground">
-                  {stat.value}
-                </div>
-                <div className="mt-2 flex items-center gap-1 text-xs">
-                  {stat.isPositive && (
-                    <TrendingUp className="h-3 w-3 text-emerald-600" />
-                  )}
-                  <span
-                    className={
-                      stat.isPositive
-                        ? "text-emerald-600"
-                        : "text-muted-foreground"
-                    }
-                  >
-                    {stat.change}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+    useEffect(() => {
+        getDashboardStats()
+            .then(setStats)
+            .catch(() => {/* ignore — keep null */})
+            .finally(() => setLoading(false));
+    }, []);
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        {/* Left Column: Tailoring Progress */}
-        <div className="space-y-6">
-          {/* Tailoring Orders */}
-          <Card className="border-border/60">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-muted p-2">
-                    <Activity className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <CardTitle>Tiến độ may đo</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Đang thực hiện: 24 đơn
-                    </p>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/admin/orders">
-                    Xem tất cả
-                    <ArrowUpRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {tailoringOrders.map((order) => (
-                <div key={order.id} className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {order.id}
-                        </Badge>
-                        <h4 className="text-sm font-semibold text-foreground">
-                          {order.character}
-                        </h4>
-                      </div>
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Users className="h-3 w-3" />
-                        Khách hàng: {order.client}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <Badge
-                        variant={order.isDelayed ? "destructive" : "secondary"}
-                        className="text-xs"
-                      >
-                        {order.dueDate}
-                      </Badge>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {order.step}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-muted-foreground">
-                        Tiến độ xưởng
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        {order.progress}%
-                      </span>
-                    </div>
-                    <Progress value={order.progress} className="h-2" />
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+    const today = new Date().toLocaleDateString("vi-VN", {
+        weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
 
-          {/* Revenue Chart Placeholder */}
-          <Card className="border-border/60">
-            <CardHeader>
-              <CardTitle>Phân tích hiệu quả kinh doanh</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                So sánh giữa dịch vụ Thuê và Đặt may
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="flex h-64 items-center justify-center rounded-lg border border-border/60 bg-muted/30">
-                <p className="text-sm text-muted-foreground">
-                  Biểu đồ doanh thu (Chart placeholder)
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+    return (
+        <div className="mx-auto max-w-[1600px] space-y-6">
 
-        {/* Right Column: Deadlines & Top Sellers */}
-        <div className="space-y-6">
-          {/* Rental Deadlines */}
-          <Card className="border-border/60">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-destructive" />
-                  <CardTitle>Hạn trả đồ</CardTitle>
+            {/* ── Header ───────────────────────────────────────────────────── */}
+            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+                <div>
+                    <h1 className="text-2xl font-black text-slate-900">Tổng quan hệ thống</h1>
+                    <p className="mt-1 text-sm capitalize text-slate-400">{today}</p>
                 </div>
-                <Button variant="ghost" size="sm" className="text-xs">
-                  Xem lịch
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {rentalDeadlines.map((deadline) => {
-                const urgencyColors = {
-                  high: "bg-destructive",
-                  medium: "bg-amber-500",
-                  low: "bg-emerald-500",
-                }
-                return (
-                  <div
-                    key={deadline.id}
-                    className="flex items-center gap-3 rounded-lg border border-border/60 p-3"
-                  >
-                    <div
-                      className={`h-10 w-1 rounded-full ${urgencyColors[deadline.urgency]}`}
+                <div className="flex gap-3">
+                    <Link to="/admin/users"
+                        className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition">
+                        <Users size={14} /> Quản lý User
+                    </Link>
+                    <Link to="/admin/orders"
+                        className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 transition">
+                        <ShoppingCart size={14} /> Đơn hàng
+                    </Link>
+                </div>
+            </div>
+
+            {/* ── KPI Cards ────────────────────────────────────────────────── */}
+            {loading ? (
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-36 rounded-3xl" />
+                    ))}
+                </div>
+            ) : stats ? (
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <StatCard
+                        accent
+                        label="Doanh thu"
+                        value={fmtVnd(stats.totalRevenue) + "đ"}
+                        sub={`Hôm nay: ${fmtVnd(stats.revenueToday)}đ`}
+                        icon={DollarSign}
+                        iconBg="" iconText=""
                     />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <h5 className="truncate text-sm font-semibold text-foreground">
-                          {deadline.name}
-                        </h5>
-                        <Badge variant="outline" className="text-xs">
-                          {deadline.id}
-                        </Badge>
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {deadline.item}
-                      </p>
-                      <div className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
-                        <Clock className="h-3 w-3" />
-                        {deadline.time}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-              <Button variant="outline" size="sm" className="w-full">
-                Nhắc nhở tự động tất cả
-              </Button>
-            </CardContent>
-          </Card>
+                    <StatCard
+                        label="Tổng người dùng"
+                        value={stats.totalUsers.toLocaleString("vi-VN")}
+                        sub={`+${stats.newUsersToday} hôm nay`}
+                        icon={Users}
+                        iconBg="bg-blue-50" iconText="text-blue-600"
+                        trend={{ value: `${stats.newUsersToday} mới`, positive: true }}
+                    />
+                    <StatCard
+                        label="Tổng đơn hàng"
+                        value={stats.totalOrders.toLocaleString("vi-VN")}
+                        sub={`${stats.pendingOrders} chờ xác nhận`}
+                        icon={ShoppingCart}
+                        iconBg="bg-indigo-50" iconText="text-indigo-600"
+                    />
+                    <StatCard
+                        label="Hoàn thành"
+                        value={stats.completedOrders.toLocaleString("vi-VN")}
+                        sub={`${stats.cancelledOrders} đã hủy`}
+                        icon={CheckCircle2}
+                        iconBg="bg-emerald-50" iconText="text-emerald-600"
+                        trend={{
+                            value: stats.totalOrders > 0
+                                ? Math.round((stats.completedOrders / stats.totalOrders) * 100) + "%"
+                                : "0%",
+                            positive: true,
+                        }}
+                    />
+                </div>
+            ) : null}
 
-          {/* Top Sellers */}
-          <Card className="border-border/60">
-            <CardHeader>
-              <CardTitle>Top Sellers Tuần</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {topSellers.map((seller) => {
-                const isPositive = seller.growth.startsWith("+")
-                return (
-                  <div
-                    key={seller.name}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-muted text-sm font-semibold text-muted-foreground">
-                          {seller.avatar}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {seller.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {seller.sales}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`text-xs font-semibold ${
-                        isPositive ? "text-emerald-600" : "text-destructive"
-                      }`}
-                    >
-                      {seller.growth}
-                    </span>
-                  </div>
-                )
-              })}
-            </CardContent>
-          </Card>
+            {/* ── Order status breakdown + User breakdown ───────────────────── */}
+            {loading ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <Skeleton className="h-44 rounded-3xl" />
+                    <Skeleton className="h-44 rounded-3xl" />
+                </div>
+            ) : stats ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <OrderStatusBar stats={stats} />
+                    <UserBreakdown  stats={stats} />
+                </div>
+            ) : null}
 
-          {/* Platform Revenue */}
-          <Card className="border-border/60">
-            <CardHeader>
-              <CardTitle>Số dư phí sàn</CardTitle>
-              <p className="text-sm text-muted-foreground">Khả dụng</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-3xl font-bold text-foreground">
-                42.850.000 đ
-              </div>
-              <div className="flex gap-2">
-                <Button variant="default" size="sm" className="flex-1">
-                  Đối soát
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1">
-                  Rút tiền
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            {/* ── Order mini stats row ───────────────────────────────────────── */}
+            {!loading && stats && (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    {[
+                        { label: "Chờ xác nhận", value: stats.pendingOrders,    icon: Clock,        bg: "bg-amber-50",   text: "text-amber-600"   },
+                        { label: "Đang xử lý",   value: stats.processingOrders, icon: Package,      bg: "bg-blue-50",    text: "text-blue-600"    },
+                        { label: "Đang giao",    value: stats.shippedOrders,    icon: Truck,        bg: "bg-indigo-50",  text: "text-indigo-600"  },
+                        { label: "Hoàn thành",   value: stats.completedOrders,  icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-600" },
+                        { label: "Đã hủy",       value: stats.cancelledOrders,  icon: XCircle,      bg: "bg-rose-50",    text: "text-rose-500"    },
+                    ].map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <div key={item.label}
+                                className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+                                <div className={`rounded-xl p-2 ${item.bg}`}>
+                                    <Icon size={16} className={item.text} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{item.label}</p>
+                                    <p className="text-lg font-black text-slate-900">{item.value}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── Recent orders ──────────────────────────────────────────────── */}
+            <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                    <div className="flex items-center gap-2">
+                        <TrendingUp size={18} className="text-indigo-600" />
+                        <h3 className="text-sm font-black text-slate-900">Đơn hàng gần đây</h3>
+                    </div>
+                    <Link to="/admin/orders"
+                        className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline">
+                        Xem tất cả <ArrowUpRight size={13} />
+                    </Link>
+                </div>
+
+                {loading ? (
+                    <div className="space-y-3 p-6">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <Skeleton key={i} className="h-10" />
+                        ))}
+                    </div>
+                ) : !stats || stats.recentOrders.length === 0 ? (
+                    <p className="py-12 text-center text-sm text-slate-400">Chưa có đơn hàng nào.</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="bg-slate-50/60">
+                                    {["Mã đơn", "Khách hàng", "Shop", "Trạng thái", "Tổng tiền", "Ngày tạo"].map((h) => (
+                                        <th key={h} className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                            {h}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stats.recentOrders.map((o) => (
+                                    <RecentOrderRow key={o.id} order={o} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
         </div>
-      </div>
-    </div>
-  )
+    );
 }

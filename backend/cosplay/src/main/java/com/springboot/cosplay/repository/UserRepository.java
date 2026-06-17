@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
+
 public interface UserRepository extends JpaRepository<User, Integer> {
 
     User findByEmail(String email);
@@ -37,4 +39,6 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     long countByStatus(UserStatus status);
 
     long countByRole(UserRole role);
+
+    long countByCreatedAtAfter(LocalDateTime dateTime);
 }
