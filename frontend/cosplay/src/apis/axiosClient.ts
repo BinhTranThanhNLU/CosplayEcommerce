@@ -1,6 +1,6 @@
 import axios from "axios";
 
-//let isHandlingUnauthorized = false;
+let isHandlingUnauthorized = false;
 
 const axiosClient = axios.create({
     baseURL: "http://localhost:8080/api",
@@ -10,36 +10,40 @@ const axiosClient = axios.create({
 });
 
 
-// axiosClient.interceptors.request.use(
-//     (config) => {
-//         const token = localStorage.getItem("token");
-//         if (token) {
-//             config.headers.Authorization = `Bearer ${token}`;
-//         }
-//         return config;
-//     },
-//     (error) => {
-//         return Promise.reject(error);
-//     }
-// );
+axiosClient.interceptors.request.use(
+    (config) => {
+        const token =
+            localStorage.getItem("token") ||
+            localStorage.getItem("accessToken") ||
+            localStorage.getItem("jwt");
 
-// axiosClient.interceptors.response.use(
-//     (response) => response,
-//     (error) => {
-//         const status = error?.response?.status;
-//         const hasToken = Boolean(localStorage.getItem("token"));
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
 
-//         if (status === 401 && hasToken && !isHandlingUnauthorized) {
-//             isHandlingUnauthorized = true;
+axiosClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const status = error?.response?.status;
+        const hasToken = Boolean(localStorage.getItem("token"));
 
-//             localStorage.removeItem("user");
-//             localStorage.removeItem("token");
+        if (status === 401 && hasToken && !isHandlingUnauthorized) {
+            isHandlingUnauthorized = true;
 
-//             window.location.replace("/home");
-//         }
+            localStorage.removeItem("user");
+            localStorage.removeItem("token");
 
-//         return Promise.reject(error);
-//     }
-// );
+            window.location.replace("/login");
+        }
+
+        return Promise.reject(error);
+    }
+);
 
 export default axiosClient;

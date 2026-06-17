@@ -16,6 +16,7 @@ import {
   getUserInitials,
   subscribeToAuthSession,
 } from "../../utils/authStorage";
+import { getCart } from "../../apis/cartApi";
 
 const navLinks = [
   { label: "Mua ngay", href: "/products" },
@@ -26,6 +27,7 @@ export const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [authSession, setAuthSession] = useState(() => getStoredAuthSession());
+  const [cartCount, setCartCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
@@ -39,6 +41,37 @@ export const Header = () => {
     };
 
     return subscribeToAuthSession(syncAuthSession);
+  }, []);
+
+
+  useEffect(() => {
+    const loadCartCount = async () => {
+      const token =
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("jwt");
+
+      if (!token) {
+        setCartCount(0);
+        return;
+      }
+
+      try {
+        const currentCart = await getCart();
+        setCartCount(currentCart.items?.length ?? 0);
+      } catch (error) {
+        setCartCount(0);
+      }
+    };
+
+    loadCartCount();
+    window.addEventListener("cartchange", loadCartCount);
+    window.addEventListener("authchange", loadCartCount);
+
+    return () => {
+      window.removeEventListener("cartchange", loadCartCount);
+      window.removeEventListener("authchange", loadCartCount);
+    };
   }, []);
 
   useEffect(() => {
@@ -107,10 +140,15 @@ export const Header = () => {
           {/* Icon Giỏ hàng */}
           <Link
             to="/cart"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Giỏ hàng"
           >
             <ShoppingCart className="h-5 w-5" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            )}
           </Link>
 
           {isAuthenticated ? (
