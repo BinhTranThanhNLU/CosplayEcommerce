@@ -20,4 +20,7 @@ public class UpdateUserRequest {
 
     @Size(max = 500, message = "URL ảnh đại diện không được vượt quá 500 ký tự")
     private String avatarUrl;
+
+    // ADMIN | CUSTOMER | SELLER — cho phép null (giữ nguyên role cũ)
+    private String role;
 }

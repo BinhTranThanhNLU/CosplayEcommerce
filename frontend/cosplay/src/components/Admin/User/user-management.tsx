@@ -43,6 +43,7 @@ export default function UserManagement() {
     const [loadingList, setLoadingList] = useState(false);
     const [loadingStats, setLoadingStats] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [actionError, setActionError] = useState("");
 
     // ─── Modal state ────────────────────────────────────────────────────────────
     const [modal, setModal] = useState<ModalState>({ type: "none" });
@@ -102,14 +103,18 @@ export default function UserManagement() {
         if (modal.type !== "ban") return;
         const user = modal.user;
         setActionLoading(true);
+        setActionError("");
         try {
             const newStatus = user.status === "BANNED" ? "ACTIVE" : "BANNED";
             const updated = await changeUserStatus(user.id, newStatus);
             setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
             await fetchStats();
             setModal({ type: "none" });
-        } catch {
-            // error handled silently
+        } catch (err: unknown) {
+            const msg =
+                (err as { response?: { data?: { message?: string } } })
+                    ?.response?.data?.message ?? "Thao tác thất bại. Vui lòng thử lại.";
+            setActionError(msg);
         } finally {
             setActionLoading(false);
         }
@@ -119,12 +124,16 @@ export default function UserManagement() {
         if (modal.type !== "delete") return;
         const user = modal.user;
         setActionLoading(true);
+        setActionError("");
         try {
             await deleteUser(user.id);
             await Promise.all([fetchUsers(), fetchStats()]);
             setModal({ type: "none" });
-        } catch {
-            // error handled silently
+        } catch (err: unknown) {
+            const msg =
+                (err as { response?: { data?: { message?: string } } })
+                    ?.response?.data?.message ?? "Xóa tài khoản thất bại. Vui lòng thử lại.";
+            setActionError(msg);
         } finally {
             setActionLoading(false);
         }
@@ -210,8 +219,9 @@ export default function UserManagement() {
                     confirmLabel={modal.user.status === "BANNED" ? "Mở khóa" : "Khóa tài khoản"}
                     confirmDanger={modal.user.status !== "BANNED"}
                     loading={actionLoading}
+                    error={actionError}
                     onConfirm={handleToggleBan}
-                    onCancel={() => setModal({ type: "none" })}
+                    onCancel={() => { setModal({ type: "none" }); setActionError(""); }}
                 />
             )}
 
@@ -222,8 +232,9 @@ export default function UserManagement() {
                     confirmLabel="Xóa vĩnh viễn"
                     confirmDanger
                     loading={actionLoading}
+                    error={actionError}
                     onConfirm={handleDelete}
-                    onCancel={() => setModal({ type: "none" })}
+                    onCancel={() => { setModal({ type: "none" }); setActionError(""); }}
                 />
             )}
         </div>

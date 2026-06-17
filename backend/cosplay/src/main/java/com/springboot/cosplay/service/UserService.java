@@ -81,11 +81,15 @@ public class UserService {
         User user = findUserOrThrow(id);
 
         user.setFullName(request.getFullName().trim());
+
         if (request.getPhone() != null) {
             user.setPhone(request.getPhone().trim().isEmpty() ? null : request.getPhone().trim());
         }
         if (request.getAvatarUrl() != null) {
             user.setAvatarUrl(request.getAvatarUrl().trim().isEmpty() ? null : request.getAvatarUrl().trim());
+        }
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            user.setRole(resolveRoleStrict(request.getRole()));
         }
 
         return toDTO(userRepository.save(user));

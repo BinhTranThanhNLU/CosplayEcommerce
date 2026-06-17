@@ -32,6 +32,7 @@ export interface UpdateUserPayload {
     fullName: string;
     phone?: string;
     avatarUrl?: string;
+    role?: string;
 }
 
 export interface CreateUserPayload {
