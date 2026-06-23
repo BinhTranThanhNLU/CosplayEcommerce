@@ -9,4 +9,5 @@ public class CheckoutResponse {
     private Integer orderId;
     private Long totalAmount;
     private String status;
+    private String paymentUrl; // Trả về link VNPay (nếu có), rỗng nếu là COD
 }

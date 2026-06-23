@@ -162,67 +162,7 @@ public class CartService {
         return toResponse(cart);
     }
 
-    @Transactional
-    public CheckoutResponse checkout(User user, String shippingAddress) {
-        Cart cart = getOrCreateCart(user);
 
-        if (cart.getItems() == null || cart.getItems().isEmpty()) {
-            throw new BusinessException("Giỏ hàng đang trống");
-        }
-
-        if (shippingAddress == null || shippingAddress.trim().isEmpty()) {
-            throw new BusinessException("Vui lòng nhập địa chỉ giao hàng");
-        }
-
-        Long total = cart.getItems()
-                .stream()
-                .mapToLong(item -> getItemPrice(item) * safeQuantity(item))
-                .sum();
-
-        Shop shop = cart.getItems()
-                .get(0)
-                .getProductVariant()
-                .getProduct()
-                .getShop();
-
-        Order order = Order.builder()
-                .user(user)
-                .shop(shop)
-                .totalAmount(total)
-                .status(OrderStatus.PENDING)
-                .shippingAddress(shippingAddress.trim())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        List<OrderItem> orderItems = cart.getItems()
-                .stream()
-                .map(item -> OrderItem.builder()
-                        .order(order)
-                        .productVariant(item.getProductVariant())
-                        .quantity(safeQuantity(item))
-                        .price(getItemPrice(item))
-                        .rental(false)
-                        .build())
-                .toList();
-
-        if (order.getItems() == null) {
-            order.setItems(new ArrayList<>());
-        }
-
-        order.getItems().addAll(orderItems);
-
-        Order savedOrder = orderRepository.save(order);
-
-        cartItemRepository.deleteByCart(cart);
-
-        cart.getItems().clear();
-
-        return CheckoutResponse.builder()
-                .orderId(savedOrder.getId())
-                .totalAmount(savedOrder.getTotalAmount())
-                .status(savedOrder.getStatus().name())
-                .build();
-    }
 
     private Cart getOrCreateCart(User user) {
         return cartRepository.findByUser(user)

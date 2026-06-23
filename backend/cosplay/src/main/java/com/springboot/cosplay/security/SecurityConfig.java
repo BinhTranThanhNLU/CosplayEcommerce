@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configure(http))    // Cấu hình CORS cho React gọi API không bị lỗi
                 .authorizeHttpRequests(auth -> auth
                         // 1. NHÓM PUBLIC (Không cần đăng nhập)
+                        .requestMatchers(HttpMethod.GET, "/orders/vnpay-return").permitAll()
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/products", "/products/**", "/categories", "/categories/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/error").permitAll()

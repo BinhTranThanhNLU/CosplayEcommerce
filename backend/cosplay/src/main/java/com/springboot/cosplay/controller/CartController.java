@@ -2,10 +2,8 @@ package com.springboot.cosplay.controller;
 
 import com.springboot.cosplay.entity.User;
 import com.springboot.cosplay.requestDto.AddToCartRequest;
-import com.springboot.cosplay.requestDto.CheckoutRequest;
 import com.springboot.cosplay.requestDto.UpdateCartItemRequest;
 import com.springboot.cosplay.responseDto.CartResponse;
-import com.springboot.cosplay.responseDto.CheckoutResponse;
 import com.springboot.cosplay.security.UserDetailsImpl;
 import com.springboot.cosplay.service.CartService;
 import org.springframework.http.ResponseEntity;
@@ -52,12 +50,6 @@ public class CartController {
     public ResponseEntity<CartResponse> removeItem(@AuthenticationPrincipal UserDetailsImpl principal,
                                                    @PathVariable Integer itemId) {
         return ResponseEntity.ok(cartService.removeItem(currentUser(principal), itemId));
-    }
-
-    @PostMapping("/checkout")
-    public ResponseEntity<CheckoutResponse> checkout(@AuthenticationPrincipal UserDetailsImpl principal,
-                                                     @RequestBody CheckoutRequest request) {
-        return ResponseEntity.ok(cartService.checkout(currentUser(principal), request.getShippingAddress()));
     }
 
     private User currentUser(UserDetailsImpl principal) {

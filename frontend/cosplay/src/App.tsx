@@ -9,6 +9,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
+import { PaymentResultPage } from "./pages/user/PaymentResultPage";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
+          <Route path="/payment-result" element={<PaymentResultPage />} />
 
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
