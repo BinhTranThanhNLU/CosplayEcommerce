@@ -1,9 +1,12 @@
 package com.springboot.cosplay.service;
 
+import com.springboot.cosplay.dto.GoogleUserInfoDTO;
 import com.springboot.cosplay.dto.UserDTO;
 import com.springboot.cosplay.entity.User;
 import com.springboot.cosplay.entity.UserRole;
 import com.springboot.cosplay.entity.UserStatus;
+import com.springboot.cosplay.exception.BusinessException;
+import com.springboot.cosplay.exception.InvalidCredentialsException;
 import com.springboot.cosplay.repository.UserRepository;
 import com.springboot.cosplay.requestDto.RegisterRequest;
 import com.springboot.cosplay.responseDto.LoginResponse;
@@ -16,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.text.Normalizer;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Locale;
 
 @Service
@@ -24,11 +28,84 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final EmailService emailService;
+    private final GoogleService googleService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService, EmailService emailService, GoogleService googleService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.emailService = emailService;
+        this.googleService = googleService;
+    }
+
+    // Đăng nhập bằng Google
+    public LoginResponse loginWithGoogle(String credential) {
+        GoogleUserInfoDTO googleUserInfo = googleService.verifyToken(credential);
+        String email = googleUserInfo.getEmail();
+
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            // Nếu chưa có tài khoản, tạo mới với vai trò CUSTOMER
+            user = new User();
+            user.setEmail(email);
+            user.setFullName(googleUserInfo.getName());
+            user.setAvatarUrl(googleUserInfo.getPicture());
+            user.setRole(UserRole.CUSTOMER);
+            user.setStatus(UserStatus.ACTIVE);
+            user.setCreatedAt(LocalDateTime.now());
+            userRepository.save(user);
+        }
+
+        if (user.getStatus() == UserStatus.BANNED) {
+            throw new RuntimeException(
+                    "Tài khoản đã bị khóa"
+            );
+        }
+
+        String token = jwtService.generateToken(user.getEmail());
+        return new LoginResponse(token, toUserDTO(user));
+    }
+
+
+    // Quên mật khẩu (Tạo token và "gửi mail")
+    public void forgotPassword(String email) {
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            return;
+        }
+
+        // Sinh ra một JWT token thời hạn ngắn (15 phút)
+        String resetToken = jwtService.generateResetPasswordToken(email);
+
+        // Gửi email thực tế chứa link reset
+        emailService.sendResetPasswordEmail(user.getEmail(), resetToken);
+    }
+
+    // Đặt lại mật khẩu
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        // 1. Lấy email từ token (jwtService tự kiểm tra token hết hạn chưa)
+        String email;
+        try {
+            email = jwtService.extractEmail(token);
+        } catch (Exception e) {
+            throw new RuntimeException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
+        }
+
+        if (!jwtService.isResetPasswordTokenValid(token, email)) {
+            throw new RuntimeException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạnn");
+        }
+
+        // 2. Tìm user
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new RuntimeException("Không tìm thấy người dùng");
+        }
+
+        // 3. Cập nhật mật khẩu mới
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
     }
 
     public LoginResponse login(String email, String rawPassword) {
@@ -43,8 +120,16 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản của bạn hiện không hoạt động");
         }
 
+        if (user.getPassword() == null) {
+            throw new BusinessException(
+                    "Tài khoản này được đăng ký bằng Google. Vui lòng đăng nhập bằng Google."
+            );
+        }
+
         if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sai email hoặc mật khẩu");
+            throw new InvalidCredentialsException(
+                    "Sai email hoặc mật khẩu"
+            );
         }
 
         String token = jwtService.generateToken(user.getEmail());

@@ -1,31 +1,6 @@
+import type { CartResponse } from "../responsemodel/CartReponse";
 import axiosClient from "./axiosClient";
 
-export interface CartItem {
-  id: number;
-  productVariantId: number;
-  productId: number;
-  productName: string;
-  imageUrl: string;
-  size: string;
-  color: string;
-  stock: number;
-  quantity: number;
-  price: number;
-  lineTotal: number;
-}
-
-export interface CartResponse {
-  id: number;
-  items: CartItem[];
-  totalQuantity: number;
-  totalAmount: number;
-}
-
-export interface CheckoutResponse {
-  orderId: number;
-  totalAmount: number;
-  status: string;
-}
 
 export const getCart = async (): Promise<CartResponse> => {
   const response = await axiosClient.get("/cart");
@@ -55,8 +30,3 @@ export const removeCartItem = async (itemId: number): Promise<CartResponse> => {
   return response.data;
 };
 
-export const checkoutCart = async (shippingAddress: string): Promise<CheckoutResponse> => {
-  const response = await axiosClient.post("/cart/checkout", { shippingAddress });
-  window.dispatchEvent(new Event("cartchange"));
-  return response.data;
-};

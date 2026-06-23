@@ -1,7 +1,6 @@
 package com.springboot.cosplay.controller;
 
-import com.springboot.cosplay.requestDto.LoginRequest;
-import com.springboot.cosplay.requestDto.RegisterRequest;
+import com.springboot.cosplay.requestDto.*;
 import com.springboot.cosplay.responseDto.LoginResponse;
 import com.springboot.cosplay.service.AuthService;
 import jakarta.validation.Valid;
@@ -22,6 +21,12 @@ public class AuthController {
         this.authService = authService;
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<LoginResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        LoginResponse response = authService.loginWithGoogle(request.getCredential());
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         LoginResponse response = authService.login(loginRequest.getEmail(), loginRequest.getPassword());
@@ -34,16 +39,16 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully");
     }
 
-//    @PostMapping("/forgot-password")
-//    public ResponseEntity<String> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-//        authService.forgotPassword(request.getEmail());
-//        return ResponseEntity.ok("Password reset instructions have been sent to your email.");
-//    }
-//
-//    @PostMapping("/reset-password")
-//    public ResponseEntity<String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-//        authService.resetPassword(request.getToken(), request.getNewPassword());
-//        return ResponseEntity.ok("Password has been reset successfully. You can now login.");
-//    }
+    @PostMapping("/forgot-password")
+    public ResponseEntity<String> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request.getEmail());
+        return ResponseEntity.ok("Hướng dẫn đặt lại mật khẩu đã được gửi đến email của bạn.");
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok("Mật khẩu đã được đặt lại thành công.");
+    }
 }
 
