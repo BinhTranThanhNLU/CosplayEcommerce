@@ -1,7 +1,10 @@
 package com.springboot.cosplay.service;
 
-import com.springboot.cosplay.config.VNPayConfig;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -10,46 +13,48 @@ import java.util.*;
 @Service
 public class VNPayService {
 
-    public String createOrderUrl(Integer orderId, Long totalAmount, String ipAddress) {
-        String vnp_Version = "2.1.0";
-        String vnp_Command = "pay";
-        String vnp_TxnRef = VNPayConfig.getRandomNumber(8) + "_" + orderId;
-        String vnp_IpAddr = ipAddress;
-        String vnp_TmnCode = VNPayConfig.vnp_TmnCode;
+    @Value("${vnpay.tmn-code}")
+    private String tmnCode;
 
-        // Giá trị đơn hàng đang là VND, VNPay yêu cầu nhân 100
+    @Value("${vnpay.hash-secret}")
+    private String hashSecret;
+
+    @Value("${vnpay.pay-url}")
+    private String payUrl;
+
+    @Value("${vnpay.return-url}")
+    private String returnUrl;
+
+    public String createOrderUrl(Integer orderId, Long totalAmount, String ipAddress) {
         long amount = totalAmount * 100;
 
         Map<String, String> vnp_Params = new HashMap<>();
-        vnp_Params.put("vnp_Version", vnp_Version);
-        vnp_Params.put("vnp_Command", vnp_Command);
-        vnp_Params.put("vnp_TmnCode", vnp_TmnCode);
+        vnp_Params.put("vnp_Version", "2.1.0");
+        vnp_Params.put("vnp_Command", "pay");
+        vnp_Params.put("vnp_TmnCode", tmnCode);
         vnp_Params.put("vnp_Amount", String.valueOf(amount));
-        vnp_Params.put("vnp_CurrCode", "VND"); // Đã chuẩn hóa VND
-        vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
+        vnp_Params.put("vnp_CurrCode", "VND");
+        vnp_Params.put("vnp_TxnRef", getRandomNumber(8) + "_" + orderId);
         vnp_Params.put("vnp_OrderInfo", "Thanh toan don hang " + orderId);
         vnp_Params.put("vnp_OrderType", "other");
         vnp_Params.put("vnp_Locale", "vn");
-        vnp_Params.put("vnp_ReturnUrl", VNPayConfig.vnp_Returnurl);
-        vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
+        vnp_Params.put("vnp_ReturnUrl", returnUrl);
+        vnp_Params.put("vnp_IpAddr", ipAddress);
 
         Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
-        String vnp_CreateDate = formatter.format(cld.getTime());
-        vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
+        vnp_Params.put("vnp_CreateDate", formatter.format(cld.getTime()));
 
         cld.add(Calendar.MINUTE, 15); // Link sống 15 phút
-        String vnp_ExpireDate = formatter.format(cld.getTime());
-        vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
+        vnp_Params.put("vnp_ExpireDate", formatter.format(cld.getTime()));
 
-        // Build URL
         List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
         Collections.sort(fieldNames);
         StringBuilder hashData = new StringBuilder();
         StringBuilder query = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
 
         try {
+            Iterator<String> itr = fieldNames.iterator();
             while (itr.hasNext()) {
                 String fieldName = itr.next();
                 String fieldValue = vnp_Params.get(fieldName);
@@ -71,10 +76,10 @@ public class VNPayService {
         }
 
         String queryUrl = query.toString();
-        String vnp_SecureHash = VNPayConfig.hmacSHA512(VNPayConfig.vnp_HashSecret, hashData.toString());
+        String vnp_SecureHash = hmacSHA512(hashSecret, hashData.toString());
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
 
-        return VNPayConfig.vnp_PayUrl + "?" + queryUrl;
+        return payUrl + "?" + queryUrl;
     }
 
     public boolean verifySecureHash(Map<String, String> params) {
@@ -83,7 +88,6 @@ public class VNPayService {
             return false;
         }
 
-        // Tạo map mới để loại bỏ các trường hash khỏi chuỗi cần tính toán
         Map<String, String> vnp_Params = new HashMap<>(params);
         vnp_Params.remove("vnp_SecureHash");
         vnp_Params.remove("vnp_SecureHashType");
@@ -91,9 +95,9 @@ public class VNPayService {
         List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
         Collections.sort(fieldNames);
         StringBuilder hashData = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
 
         try {
+            Iterator<String> itr = fieldNames.iterator();
             while (itr.hasNext()) {
                 String fieldName = itr.next();
                 String fieldValue = vnp_Params.get(fieldName);
@@ -110,7 +114,38 @@ public class VNPayService {
             return false;
         }
 
-        String signValue = VNPayConfig.hmacSHA512(VNPayConfig.vnp_HashSecret, hashData.toString());
+        String signValue = hmacSHA512(hashSecret, hashData.toString());
         return signValue.equals(vnp_SecureHash);
+    }
+
+    private String hmacSHA512(final String key, final String data) {
+        try {
+            if (key == null || data == null) {
+                throw new NullPointerException();
+            }
+            final Mac hmac512 = Mac.getInstance("HmacSHA512");
+            byte[] hmacKeyBytes = key.getBytes();
+            final SecretKeySpec secretKey = new SecretKeySpec(hmacKeyBytes, "HmacSHA512");
+            hmac512.init(secretKey);
+            byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
+            byte[] result = hmac512.doFinal(dataBytes);
+            StringBuilder sb = new StringBuilder(2 * result.length);
+            for (byte b : result) {
+                sb.append(String.format("%02x", b & 0xff));
+            }
+            return sb.toString();
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private String getRandomNumber(int len) {
+        Random rnd = new Random();
+        String chars = "0123456789";
+        StringBuilder sb = new StringBuilder(len);
+        for (int i = 0; i < len; i++) {
+            sb.append(chars.charAt(rnd.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 }
