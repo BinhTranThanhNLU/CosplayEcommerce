@@ -44,7 +44,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/products", "/products/**", "/categories", "/categories/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/error").permitAll()
 
-                        // 2. An toàn mặc định
+                        // 2. Chỉ ADMIN mới truy cập được /admin/**
+                        .requestMatchers("/admin/**").hasAuthority("admin")
+
+                        // 3. An toàn mặc định
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
