@@ -11,6 +11,7 @@ import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import { PaymentResultPage } from "./pages/user/PaymentResultPage";
 import { ProfileOverviewPage } from "./pages/user/ProfileOverviewPage";
+import  ProfileEditPage  from "./pages/user/ProfileEditPage";
 
 import Dashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -32,6 +33,7 @@ function App() {
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="/payment-result" element={<PaymentResultPage />} />
           <Route path="/profile" element={<ProfileOverviewPage />} />
+          <Route path="/profile/edit" element={<ProfileEditPage />} />
 
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
