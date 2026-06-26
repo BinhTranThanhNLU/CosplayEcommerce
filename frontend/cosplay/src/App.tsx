@@ -13,6 +13,7 @@ import { PaymentResultPage } from "./pages/user/PaymentResultPage";
 import { ProfileOverviewPage } from "./pages/user/ProfileOverviewPage";
 import  ProfileEditPage  from "./pages/user/ProfileEditPage";
 import  ProfileMeasurementsPage  from "./pages/user/ProfileMeasurementsPage";
+import  ProfileOrdersPage  from "./pages/user/ProfileOrdersPage";
 
 import Dashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -36,6 +37,7 @@ function App() {
           <Route path="/profile" element={<ProfileOverviewPage />} />
           <Route path="/profile/edit" element={<ProfileEditPage />} />
           <Route path="/profile/measurements" element={<ProfileMeasurementsPage />} />
+          <Route path="/profile/orders" element={<ProfileOrdersPage />} />
           
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
