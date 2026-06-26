@@ -12,6 +12,7 @@ import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import { PaymentResultPage } from "./pages/user/PaymentResultPage";
 import { ProfileOverviewPage } from "./pages/user/ProfileOverviewPage";
 import  ProfileEditPage  from "./pages/user/ProfileEditPage";
+import  ProfileMeasurementsPage  from "./pages/user/ProfileMeasurementsPage";
 
 import Dashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -34,7 +35,8 @@ function App() {
           <Route path="/payment-result" element={<PaymentResultPage />} />
           <Route path="/profile" element={<ProfileOverviewPage />} />
           <Route path="/profile/edit" element={<ProfileEditPage />} />
-
+          <Route path="/profile/measurements" element={<ProfileMeasurementsPage />} />
+          
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />
