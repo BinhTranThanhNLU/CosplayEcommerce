@@ -10,6 +10,9 @@ export type OrderStatus =
     | "COMPLETED"
     | "CANCELLED";
 
+export type PaymentStatus = "UNPAID" | "PAID" | "FAILED" | "REFUNDED";
+export type PaymentMethod = "COD" | "VNPAY";
+
 export interface OrderItemDTO {
     id: number;
     productVariantId: number;
@@ -32,6 +35,8 @@ export interface OrderDTO {
     shopName: string | null;
     totalAmount: number;
     status: OrderStatus;
+    paymentMethod: PaymentMethod | null;
+    paymentStatus: PaymentStatus | null;
     shippingAddress: string;
     createdAt: string;
     items: OrderItemDTO[];
@@ -91,4 +96,10 @@ export const checkoutCart = async (shippingAddress: string, paymentMethod: strin
   
   window.dispatchEvent(new Event("cartchange"));
   return response.data;
-}
+};
+
+// GET /api/orders/my-orders — Lấy lịch sử đơn hàng của user đang login
+export const getMyOrders = async (): Promise<OrderDTO[]> => {
+  const response = await axiosClient.get<OrderDTO[]>("/orders/my-orders");
+  return response.data;
+};
