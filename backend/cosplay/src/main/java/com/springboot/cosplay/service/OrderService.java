@@ -1,5 +1,7 @@
 package com.springboot.cosplay.service;
 
+import com.springboot.cosplay.dto.OrderDTO;
+import com.springboot.cosplay.dto.OrderItemDTO;
 import com.springboot.cosplay.entity.*;
 import com.springboot.cosplay.exception.BusinessException;
 import com.springboot.cosplay.repository.CartItemRepository;
@@ -18,65 +20,69 @@ import java.util.Map;
 @Service
 public class OrderService {
 
-    private final CartRepository cartRepository;
+    private final CartRepository     cartRepository;
     private final CartItemRepository cartItemRepository;
-    private final OrderRepository orderRepository;
-    private final VNPayService vnPayService;
+    private final OrderRepository    orderRepository;
+    private final VNPayService       vnPayService;
 
     public OrderService(CartRepository cartRepository,
                         CartItemRepository cartItemRepository,
                         OrderRepository orderRepository,
                         VNPayService vnPayService) {
-        this.cartRepository = cartRepository;
+        this.cartRepository     = cartRepository;
         this.cartItemRepository = cartItemRepository;
-        this.orderRepository = orderRepository;
-        this.vnPayService = vnPayService;
+        this.orderRepository    = orderRepository;
+        this.vnPayService       = vnPayService;
     }
 
-    // Thêm hàm này vào OrderService.java
+    // ─── Lấy lịch sử đơn hàng của user ───────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<OrderDTO> getMyOrders(User user) {
+        return orderRepository
+                .findByUserIdOrderByCreatedAtDesc(user.getId())
+                .stream()
+                .map(this::toOrderDTO)
+                .toList();
+    }
+
+    // ─── Xử lý callback VNPay ─────────────────────────────────────────────────
+
     @Transactional
     public String handleVnPayReturn(Map<String, String> params) {
-        // Đường dẫn gốc của Frontend React (sửa lại nếu port của bạn khác)
         String frontendUrl = "http://localhost:5173/payment-result";
 
-        // 1. Kiểm tra chữ ký bảo mật
         if (!vnPayService.verifySecureHash(params)) {
             return frontendUrl + "?status=failed&message=Invalid-Signature";
         }
 
-        // 2. Lấy thông tin từ params
-        String vnp_TxnRef = params.get("vnp_TxnRef");
+        String vnp_TxnRef       = params.get("vnp_TxnRef");
         String vnp_ResponseCode = params.get("vnp_ResponseCode");
 
-        // Tách lấy Order ID (vì lúc tạo url mình ghép format: random_orderId)
         Integer orderId;
         try {
-            String[] txnRefParts = vnp_TxnRef.split("_");
-            orderId = Integer.parseInt(txnRefParts[txnRefParts.length - 1]);
+            String[] parts = vnp_TxnRef.split("_");
+            orderId = Integer.parseInt(parts[parts.length - 1]);
         } catch (Exception e) {
             return frontendUrl + "?status=failed&message=Invalid-TxnRef";
         }
 
-        // 3. Tìm đơn hàng
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng"));
 
-        // 4. Kiểm tra mã phản hồi và cập nhật trạng thái
         if ("00".equals(vnp_ResponseCode)) {
-            // Thanh toán thành công
             order.setPaymentStatus(PaymentStatus.PAID);
             orderRepository.save(order);
-
             return frontendUrl + "?status=success&orderId=" + orderId;
         } else {
-            // Thanh toán thất bại hoặc người dùng bấm Hủy
             order.setPaymentStatus(PaymentStatus.FAILED);
-            order.setStatus(OrderStatus.CANCELLED); // Hủy luôn đơn giao hàng
+            order.setStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
-
             return frontendUrl + "?status=failed&orderId=" + orderId;
         }
     }
+
+    // ─── Checkout ─────────────────────────────────────────────────────────────
 
     @Transactional
     public CheckoutResponse checkout(User user, CheckoutRequest request, String ipAddress) {
@@ -85,35 +91,29 @@ public class OrderService {
         if (cart.getItems() == null || cart.getItems().isEmpty()) {
             throw new BusinessException("Giỏ hàng đang trống");
         }
-
-        if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) {
+        if (request.getShippingAddress() == null || request.getShippingAddress().isBlank()) {
             throw new BusinessException("Vui lòng nhập địa chỉ giao hàng");
         }
 
-        Long total = cart.getItems()
-                .stream()
+        long total = cart.getItems().stream()
                 .mapToLong(item -> getItemPrice(item) * safeQuantity(item))
                 .sum();
 
-        Shop shop = cart.getItems()
-                .get(0)
-                .getProductVariant()
-                .getProduct()
-                .getShop();
+        Shop shop = cart.getItems().get(0)
+                .getProductVariant().getProduct().getShop();
 
         Order order = Order.builder()
                 .user(user)
                 .shop(shop)
                 .totalAmount(total)
-                .status(OrderStatus.PENDING) // Trạng thái giao hàng
+                .status(OrderStatus.PENDING)
                 .shippingAddress(request.getShippingAddress().trim())
-                .paymentMethod(request.getPaymentMethod())  // Lưu COD hoặc VNPAY
-                .paymentStatus(PaymentStatus.UNPAID) // Mặc định khởi tạo là chưa trả tiền
+                .paymentMethod(request.getPaymentMethod())
+                .paymentStatus(PaymentStatus.UNPAID)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        List<OrderItem> orderItems = cart.getItems()
-                .stream()
+        List<OrderItem> orderItems = cart.getItems().stream()
                 .map(item -> OrderItem.builder()
                         .order(order)
                         .productVariant(item.getProductVariant())
@@ -123,42 +123,31 @@ public class OrderService {
                         .build())
                 .toList();
 
-        if (order.getItems() == null) {
-            order.setItems(new ArrayList<>());
-        }
+        order.setItems(new ArrayList<>(orderItems));
 
-        order.getItems().addAll(orderItems);
-
-        Order savedOrder = orderRepository.save(order);
-
+        Order saved = orderRepository.save(order);
         cartItemRepository.deleteByCart(cart);
-
         cart.getItems().clear();
 
-        // Xử lý tạo URL thanh toán
         String paymentUrl = null;
         if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
-            paymentUrl = vnPayService.createOrderUrl(savedOrder.getId(), savedOrder.getTotalAmount(), ipAddress);
+            paymentUrl = vnPayService.createOrderUrl(saved.getId(), saved.getTotalAmount(), ipAddress);
         }
 
         return CheckoutResponse.builder()
-                .orderId(savedOrder.getId())
-                .totalAmount(savedOrder.getTotalAmount())
-                .status(savedOrder.getStatus().name())
-                .paymentUrl(paymentUrl) // Trả về link hoặc null
+                .orderId(saved.getId())
+                .totalAmount(saved.getTotalAmount())
+                .status(saved.getStatus().name())
+                .paymentUrl(paymentUrl)
                 .build();
     }
 
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
     private Cart getOrCreateCart(User user) {
         return cartRepository.findByUser(user)
-                .orElseGet(() -> {
-                    Cart cart = Cart.builder()
-                            .user(user)
-                            .items(new ArrayList<>())
-                            .build();
-
-                    return cartRepository.save(cart);
-                });
+                .orElseGet(() -> cartRepository.save(
+                        Cart.builder().user(user).items(new ArrayList<>()).build()));
     }
 
     private int safeQuantity(CartItem item) {
@@ -170,5 +159,46 @@ public class OrderService {
         return price == null ? 0L : price;
     }
 
+    // ─── Mapper ───────────────────────────────────────────────────────────────
 
+    private OrderDTO toOrderDTO(Order order) {
+        List<OrderItemDTO> itemDTOs = (order.getItems() == null ? List.<OrderItem>of() : order.getItems())
+                .stream()
+                .map(this::toOrderItemDTO)
+                .toList();
+
+        return OrderDTO.builder()
+                .id(order.getId())
+                .userId(order.getUserId())
+                .customerName(order.getUser()  != null ? order.getUser().getFullName()  : null)
+                .customerEmail(order.getUser() != null ? order.getUser().getEmail()     : null)
+                .shopId(order.getShopId())
+                .shopName(order.getShop()      != null ? order.getShop().getShopName()  : null)
+                .totalAmount(order.getTotalAmount())
+                .status(order.getStatus())
+                .shippingAddress(order.getShippingAddress())
+                .createdAt(order.getCreatedAt())
+                .items(itemDTOs)
+                .build();
+    }
+
+    private OrderItemDTO toOrderItemDTO(OrderItem item) {
+        ProductVariant variant = item.getProductVariant();
+        Product product = variant != null ? variant.getProduct() : null;
+        int  qty   = item.getQuantity() == null ? 0  : item.getQuantity();
+        long price = item.getPrice()    == null ? 0L : item.getPrice();
+
+        return OrderItemDTO.builder()
+                .id(item.getId())
+                .productVariantId(item.getProductVariantId())
+                .productName(product != null ? product.getName()     : "(Không rõ)")
+                .imageUrl(product    != null ? product.getImageUrl() : null)
+                .size(variant        != null ? variant.getSize()     : null)
+                .color(variant       != null ? variant.getColor()    : null)
+                .quantity(qty)
+                .price(price)
+                .lineTotal(price * qty)
+                .rental(Boolean.TRUE.equals(item.getRental()))
+                .build();
+    }
 }

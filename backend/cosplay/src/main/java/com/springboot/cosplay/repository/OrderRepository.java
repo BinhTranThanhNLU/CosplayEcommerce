@@ -41,4 +41,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     // 5 đơn mới nhất
     List<Order> findTop5ByOrderByCreatedAtDesc();
+
+    // Lấy tất cả đơn hàng của user hiện tại, sắp xếp mới nhất trước
+    List<Order> findByUserIdOrderByCreatedAtDesc(Integer userId);
 }
