@@ -10,6 +10,10 @@ import RegisterPage from "./pages/auth/RegisterPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import ChangePasswordPage from "./pages/auth/ChangePasswordPage";
 import { PaymentResultPage } from "./pages/user/PaymentResultPage";
+import { ProfileOverviewPage } from "./pages/user/ProfileOverviewPage";
+import  ProfileEditPage  from "./pages/user/ProfileEditPage";
+import  ProfileMeasurementsPage  from "./pages/user/ProfileMeasurementsPage";
+import  ProfileOrdersPage  from "./pages/user/ProfileOrdersPage";
 
 import Dashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/UsersPage";
@@ -30,7 +34,11 @@ function App() {
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="/payment-result" element={<PaymentResultPage />} />
-
+          <Route path="/profile" element={<ProfileOverviewPage />} />
+          <Route path="/profile/edit" element={<ProfileEditPage />} />
+          <Route path="/profile/measurements" element={<ProfileMeasurementsPage />} />
+          <Route path="/profile/orders" element={<ProfileOrdersPage />} />
+          
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="forgot-password" element={<ForgotPasswordPage />} />

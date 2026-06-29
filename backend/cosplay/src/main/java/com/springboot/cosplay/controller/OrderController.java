@@ -1,5 +1,6 @@
 package com.springboot.cosplay.controller;
 
+import com.springboot.cosplay.dto.OrderDTO;
 import com.springboot.cosplay.entity.User;
 import com.springboot.cosplay.repository.OrderRepository;
 import com.springboot.cosplay.requestDto.CheckoutRequest;
@@ -14,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -44,6 +46,13 @@ public class OrderController {
         }
 
         return ResponseEntity.ok(orderService.checkout(currentUser(principal), request, ipAddress));
+    }
+
+    // GET /api/orders/my-orders — Lấy lịch sử đơn hàng của user đang đăng nhập
+    @GetMapping("/my-orders")
+    public ResponseEntity<List<OrderDTO>> getMyOrders(@AuthenticationPrincipal UserDetailsImpl principal) {
+
+        return ResponseEntity.ok(orderService.getMyOrders(principal.getUser()));
     }
 
     @GetMapping("/vnpay-return")

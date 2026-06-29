@@ -9,6 +9,7 @@ import com.springboot.cosplay.repository.UserRepository;
 import com.springboot.cosplay.requestDto.ChangeRoleRequest;
 import com.springboot.cosplay.requestDto.ChangeStatusRequest;
 import com.springboot.cosplay.requestDto.CreateUserRequest;
+import com.springboot.cosplay.requestDto.UpdateProfileRequest;
 import com.springboot.cosplay.requestDto.UpdateUserRequest;
 import com.springboot.cosplay.responseDto.UserPageResponse;
 import com.springboot.cosplay.responseDto.UserStatsResponse;
@@ -17,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,6 +74,34 @@ public class UserService {
     public UserDTO getUserById(Integer id) {
         User user = findUserOrThrow(id);
         return toDTO(user);
+    }
+
+    // ─── Lấy profile của user đang đăng nhập ─────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public UserDTO getMyProfile() {
+        String email = getCurrentUserEmail();
+        User user = findUserByEmailOrThrow(email);
+        return toDTO(user);
+    }
+
+    // ─── Cập nhật profile của user đang đăng nhập ────────────────────────────
+
+    @Transactional
+    public UserDTO updateMyProfile(UpdateProfileRequest request) {
+        String email = getCurrentUserEmail();
+        User user = findUserByEmailOrThrow(email);
+
+        user.setFullName(request.getFullName().trim());
+
+        if (request.getPhone() != null) {
+            user.setPhone(request.getPhone().trim().isEmpty() ? null : request.getPhone().trim());
+        }
+        if (request.getAvatarUrl() != null) {
+            user.setAvatarUrl(request.getAvatarUrl().trim().isEmpty() ? null : request.getAvatarUrl().trim());
+        }
+
+        return toDTO(userRepository.save(user));
     }
 
     // ─── Cập nhật thông tin user ──────────────────────────────────────────────
@@ -177,6 +207,18 @@ public class UserService {
     private User findUserOrThrow(Integer id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy user với id: " + id));
+    }
+
+    private User findUserByEmailOrThrow(String email) {
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new ResourceNotFoundException("Không tìm thấy user với email: " + email);
+        }
+        return user;
+    }
+
+    private String getCurrentUserEmail() {
+        return SecurityContextHolder.getContext().getAuthentication().getName();
     }
 
     private UserDTO toDTO(User user) {
