@@ -16,10 +16,12 @@ import { getStoredAuthSession } from "../../utils/authStorage";
 
 type ProductInfoProps = {
   product: Product;
+  detailMode?: "buy" | "rent";
 };
 
-export const ProductInfo = ({ product }: ProductInfoProps) => {
-  const [mode, setMode] = useState<"buy" | "rent">("buy");
+export const ProductInfo = ({ product, detailMode }: ProductInfoProps) => {
+  const isRentDetail = detailMode === "rent";
+  const [mode, setMode] = useState<"buy" | "rent">(isRentDetail ? "rent" : "buy");
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [rentDays, setRentDays] = useState(3);
   const [quantity, setQuantity] = useState(1);
@@ -54,7 +56,9 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
     return product.variants[0];
   }, [product.variants, selectedSize]);
 
-  const currentPrice = mode === "buy" ? (selectedVariant?.salePrice ?? buyPrice) : rentPrice * rentDays;
+  const currentRentPrice = selectedVariant?.rentPrice ?? rentPrice;
+  const unitPrice = mode === "buy" ? (selectedVariant?.salePrice ?? buyPrice) : currentRentPrice * rentDays;
+  const currentPrice = unitPrice * quantity;
   const discountPct = product.originalPrice && buyPrice > 0
     ? Math.round((1 - buyPrice / product.originalPrice) * 100)
     : null;
@@ -103,7 +107,7 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
       <hr />
 
       {/* Mode Select */}
-      {canRent && (
+      {canRent && !isRentDetail && (
         <div className="flex flex-col gap-3">
           <p className="text-sm font-medium text-foreground">Hình thức</p>
           <div className="flex gap-2">
@@ -119,8 +123,8 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
               >
                 <div className="text-base font-bold">
                   {m === "buy"
-                    ? formatPrice(buyPrice)
-                    : `${formatPrice(rentPrice)}/ngày`}
+                    ? formatPrice(selectedVariant?.salePrice ?? buyPrice)
+                    : `${formatPrice(currentRentPrice)}/ngày`}
                 </div>
                 <div className="text-xs opacity-70">
                   {m === "buy" ? "Mua trực tiếp" : "Thuê trang phục"}
@@ -156,11 +160,44 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
         </div>
       )}
 
+      {isRentDetail && (
+        <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <p className="text-sm font-semibold text-primary">Thuê trang phục</p>
+          <div className="flex flex-col gap-2 rounded-xl bg-white/70 p-4">
+            <p className="text-sm font-medium">Số ngày thuê</p>
+            <div className="flex gap-2">
+              {[1, 3, 7, 14].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setRentDays(d)}
+                  className={`rounded-lg border px-3 py-1.5 text-sm ${
+                    rentDays === d
+                      ? "border-primary bg-primary text-white"
+                      : "border-border"
+                  }`}
+                >
+                  {d} ngày
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Giá thuê: {formatPrice(currentRentPrice)}/ngày x {rentDays} ngày x {quantity} sản phẩm
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Đặt cọc 30% ({formatPrice(currentPrice * 0.3)})
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Price */}
       <div className="flex items-baseline gap-3">
-        <span className="text-3xl font-extrabold">
-          {formatPrice(currentPrice)}
-        </span>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-muted-foreground">{mode === "rent" ? "Tổng tiền thuê" : "Tổng tiền"}</span>
+          <span className="text-3xl font-extrabold">
+            {formatPrice(currentPrice)}
+          </span>
+        </div>
         {mode === "buy" && product.originalPrice && (
           <>
             <span className="text-lg text-muted-foreground line-through">
@@ -234,7 +271,7 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
       {/* Action Buttons */}
       <div className="flex flex-col gap-2">
         <button
-          disabled={isAdding || !selectedVariant || mode !== "buy"}
+          disabled={isAdding || !selectedVariant}
           onClick={async () => {
             setMessage(null);
             setError(null);
@@ -252,8 +289,8 @@ export const ProductInfo = ({ product }: ProductInfoProps) => {
 
             try {
               setIsAdding(true);
-              await addToCart(selectedVariant.id, quantity);
-              setMessage("Đã thêm vào giỏ hàng.");
+              await addToCart(selectedVariant.id, quantity, mode === "rent" ? "RENT" : "SELL", mode === "rent" ? rentDays : undefined);
+              setMessage(mode === "rent" ? "Đã thêm đơn thuê vào giỏ hàng." : "Đã thêm vào giỏ hàng.");
             } catch (err: any) {
               setError(err?.response?.data?.message || "Không thể thêm vào giỏ hàng.");
             } finally {

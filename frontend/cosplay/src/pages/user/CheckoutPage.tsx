@@ -184,7 +184,7 @@ export const CheckoutPage = () => {
         .filter(Boolean)
         .join(" - ");
 
-      const response = await checkoutCart(fullAddress, paymentMethod);
+      const response = await checkoutCart(fullAddress, paymentMethod, selectedItems.map((item) => item.id));
 
       if (response.paymentUrl && response.paymentUrl.trim() !== "") {
         window.location.href = response.paymentUrl;
@@ -192,7 +192,7 @@ export const CheckoutPage = () => {
       }
 
       setSuccessMessage(
-        `Đặt hàng thành công. Mã đơn hàng: #${response.orderId}`,
+        `Thanh toán thành công. Mã đơn: #${response.orderId}`,
       );
       window.setTimeout(() => navigate("/cart"), 1200);
     } catch (err: any) {

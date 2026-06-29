@@ -23,9 +23,32 @@ public final class ProductSpecification {
 		ProductType productType = resolveProductType(type);
 		return (root, query, cb) -> {
 			query.distinct(true);
-			return productType == null ? cb.conjunction() : cb.equal(root.get("type"), productType);
+
+			if (productType == null) {
+				return cb.conjunction();
+			}
+
+			if (productType == ProductType.SELL) {
+				return variantPriceAvailable(root, query, cb, "salePrice");
+			}
+
+			if (productType == ProductType.RENT) {
+				return variantPriceAvailable(root, query, cb, "rentPrice");
+			}
+
+			return cb.equal(root.get("type"), productType);
 		};
 	}
+
+	private static Predicate variantPriceAvailable(Root<Product> root, CriteriaQuery<?> query, CriteriaBuilder cb, String priceField) {
+		Subquery<Integer> subquery = query.subquery(Integer.class);
+		Root<ProductVariant> variant = subquery.from(ProductVariant.class);
+		Predicate productMatch = cb.equal(variant.get("product"), root);
+		Predicate hasPrice = cb.greaterThan(variant.get(priceField), 0L);
+		subquery.select(cb.literal(1)).where(cb.and(productMatch, hasPrice));
+		return cb.exists(subquery);
+	}
+
 
 	public static Specification<Product> keywordContains(String keyword) {
 		return (root, query, cb) -> {

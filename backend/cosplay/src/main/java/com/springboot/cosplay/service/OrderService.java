@@ -33,22 +33,15 @@ public class OrderService {
         this.vnPayService = vnPayService;
     }
 
-    // Thêm hàm này vào OrderService.java
     @Transactional
     public String handleVnPayReturn(Map<String, String> params) {
-        // Đường dẫn gốc của Frontend React (sửa lại nếu port của bạn khác)
         String frontendUrl = "http://localhost:5173/payment-result";
 
-        // 1. Kiểm tra chữ ký bảo mật
-        if (!vnPayService.verifySecureHash(params)) {
-            return frontendUrl + "?status=failed&message=Invalid-Signature";
-        }
+        if (!vnPayService.verifySecureHash(params)) return frontendUrl + "?status=failed&message=Invalid-Signature";
 
-        // 2. Lấy thông tin từ params
         String vnp_TxnRef = params.get("vnp_TxnRef");
         String vnp_ResponseCode = params.get("vnp_ResponseCode");
 
-        // Tách lấy Order ID (vì lúc tạo url mình ghép format: random_orderId)
         Integer orderId;
         try {
             String[] txnRefParts = vnp_TxnRef.split("_");
@@ -57,85 +50,65 @@ public class OrderService {
             return frontendUrl + "?status=failed&message=Invalid-TxnRef";
         }
 
-        // 3. Tìm đơn hàng
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng"));
+        Order order = orderRepository.findById(orderId).orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng"));
 
-        // 4. Kiểm tra mã phản hồi và cập nhật trạng thái
         if ("00".equals(vnp_ResponseCode)) {
-            // Thanh toán thành công
             order.setPaymentStatus(PaymentStatus.PAID);
             orderRepository.save(order);
-
             return frontendUrl + "?status=success&orderId=" + orderId;
-        } else {
-            // Thanh toán thất bại hoặc người dùng bấm Hủy
-            order.setPaymentStatus(PaymentStatus.FAILED);
-            order.setStatus(OrderStatus.CANCELLED); // Hủy luôn đơn giao hàng
-            orderRepository.save(order);
-
-            return frontendUrl + "?status=failed&orderId=" + orderId;
         }
+
+        order.setPaymentStatus(PaymentStatus.FAILED);
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        return frontendUrl + "?status=failed&orderId=" + orderId;
     }
 
     @Transactional
     public CheckoutResponse checkout(User user, CheckoutRequest request, String ipAddress) {
         Cart cart = getOrCreateCart(user);
+        List<CartItem> checkoutItems = resolveCheckoutItems(cart, request.getSelectedCartItemIds());
 
-        if (cart.getItems() == null || cart.getItems().isEmpty()) {
-            throw new BusinessException("Giỏ hàng đang trống");
-        }
+        if (checkoutItems.isEmpty()) throw new BusinessException("Giỏ hàng đang trống");
+        if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) throw new BusinessException("Vui lòng nhập địa chỉ giao hàng");
 
-        if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) {
-            throw new BusinessException("Vui lòng nhập địa chỉ giao hàng");
-        }
+        boolean hasRent = checkoutItems.stream().anyMatch(item -> resolveType(item) == CartItemType.RENT);
+        boolean hasSell = checkoutItems.stream().anyMatch(item -> resolveType(item) == CartItemType.SELL);
+        if (hasRent && hasSell) throw new BusinessException("Vui lòng thanh toán đơn thuê và đơn mua riêng");
 
-        Long total = cart.getItems()
-                .stream()
-                .mapToLong(item -> getItemPrice(item) * safeQuantity(item))
-                .sum();
+        Long total = checkoutItems.stream().mapToLong(item -> getItemPrice(item) * safeQuantity(item)).sum();
 
-        Shop shop = cart.getItems()
-                .get(0)
-                .getProductVariant()
-                .getProduct()
-                .getShop();
+        Shop shop = checkoutItems.get(0).getProductVariant().getProduct().getShop();
 
         Order order = Order.builder()
                 .user(user)
                 .shop(shop)
                 .totalAmount(total)
-                .status(OrderStatus.PENDING) // Trạng thái giao hàng
+                .status(OrderStatus.PENDING)
                 .shippingAddress(request.getShippingAddress().trim())
-                .paymentMethod(request.getPaymentMethod())  // Lưu COD hoặc VNPAY
-                .paymentStatus(PaymentStatus.UNPAID) // Mặc định khởi tạo là chưa trả tiền
+                .paymentMethod(request.getPaymentMethod())
+                .paymentStatus(PaymentStatus.UNPAID)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        List<OrderItem> orderItems = cart.getItems()
-                .stream()
-                .map(item -> OrderItem.builder()
-                        .order(order)
-                        .productVariant(item.getProductVariant())
-                        .quantity(safeQuantity(item))
-                        .price(getItemPrice(item))
-                        .rental(false)
-                        .build())
-                .toList();
+        List<OrderItem> orderItems = checkoutItems.stream().map(item -> OrderItem.builder()
+                .order(order)
+                .productVariant(item.getProductVariant())
+                .quantity(safeQuantity(item))
+                .price(getItemPrice(item))
+                .rental(resolveType(item) == CartItemType.RENT)
+                .build()).toList();
 
-        if (order.getItems() == null) {
-            order.setItems(new ArrayList<>());
-        }
-
+        if (order.getItems() == null) order.setItems(new ArrayList<>());
         order.getItems().addAll(orderItems);
 
         Order savedOrder = orderRepository.save(order);
 
-        cartItemRepository.deleteByCart(cart);
+        checkoutItems.forEach(item -> {
+            if (cart.getItems() != null) cart.getItems().remove(item);
+            cartItemRepository.delete(item);
+        });
 
-        cart.getItems().clear();
-
-        // Xử lý tạo URL thanh toán
         String paymentUrl = null;
         if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
             paymentUrl = vnPayService.createOrderUrl(savedOrder.getId(), savedOrder.getTotalAmount(), ipAddress);
@@ -145,30 +118,26 @@ public class OrderService {
                 .orderId(savedOrder.getId())
                 .totalAmount(savedOrder.getTotalAmount())
                 .status(savedOrder.getStatus().name())
-                .paymentUrl(paymentUrl) // Trả về link hoặc null
+                .paymentUrl(paymentUrl)
                 .build();
     }
 
+    private List<CartItem> resolveCheckoutItems(Cart cart, List<Integer> selectedCartItemIds) {
+        List<CartItem> items = cart.getItems() == null ? List.of() : cart.getItems();
+        if (selectedCartItemIds == null || selectedCartItemIds.isEmpty()) return new ArrayList<>(items);
+        return items.stream().filter(item -> selectedCartItemIds.contains(item.getId())).toList();
+    }
+
     private Cart getOrCreateCart(User user) {
-        return cartRepository.findByUser(user)
-                .orElseGet(() -> {
-                    Cart cart = Cart.builder()
-                            .user(user)
-                            .items(new ArrayList<>())
-                            .build();
-
-                    return cartRepository.save(cart);
-                });
+        return cartRepository.findByUser(user).orElseGet(() -> cartRepository.save(Cart.builder().user(user).items(new ArrayList<>()).build()));
     }
 
-    private int safeQuantity(CartItem item) {
-        return item.getQuantity() == null ? 0 : item.getQuantity();
-    }
-
+    private int safeQuantity(CartItem item) { return item.getQuantity() == null ? 0 : item.getQuantity(); }
+    private Integer safeRentalDays(CartItem item) { return item.getRentalDays() == null || item.getRentalDays() < 1 ? 1 : item.getRentalDays(); }
+    private CartItemType resolveType(CartItem item) { return item.getItemType() == null ? CartItemType.SELL : item.getItemType(); }
     private long getItemPrice(CartItem item) {
-        Long price = item.getProductVariant().getSalePrice();
-        return price == null ? 0L : price;
+        ProductVariant variant = item.getProductVariant();
+        if (resolveType(item) == CartItemType.RENT) return (variant.getRentPrice() == null ? 0L : variant.getRentPrice()) * safeRentalDays(item);
+        return variant.getSalePrice() == null ? 0L : variant.getSalePrice();
     }
-
-
 }

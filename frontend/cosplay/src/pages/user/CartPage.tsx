@@ -46,10 +46,14 @@ export const CartPage = () => {
   const items = cart?.items ?? [];
   const allSelected = items.length > 0 && selectedIds.length === items.length;
 
+  const selectedItems = useMemo(() => items.filter((item) => selectedIds.includes(item.id)), [items, selectedIds]);
+
   const selectedTotal = useMemo(
-    () => items.filter((item) => selectedIds.includes(item.id)).reduce((sum, item) => sum + item.lineTotal, 0),
-    [items, selectedIds],
+    () => selectedItems.reduce((sum, item) => sum + item.lineTotal, 0),
+    [selectedItems],
   );
+
+  const selectedTypes = useMemo(() => Array.from(new Set(selectedItems.map((item) => item.itemType ?? "SELL"))), [selectedItems]);
 
   const toggleAll = (checked: boolean) => {
     setSelectedIds(checked ? items.map((item) => item.id) : []);
@@ -107,6 +111,11 @@ export const CartPage = () => {
       return;
     }
 
+    if (selectedTypes.length > 1) {
+      setError("Vui lòng thanh toán đơn mua và đơn thuê riêng.");
+      return;
+    }
+
     navigate("/checkout", { state: { selectedIds } });
   };
 
@@ -117,9 +126,10 @@ export const CartPage = () => {
   return (
     <main className="min-h-screen bg-[#f5f5f5] px-4 py-6 md:px-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-4 grid grid-cols-[42px_minmax(320px,1fr)_150px_150px_150px_130px] items-center rounded-sm bg-white px-6 py-4 text-sm text-[#888] shadow-sm">
+        <div className="mb-4 grid grid-cols-[42px_minmax(300px,1fr)_105px_135px_135px_145px_120px] items-center rounded-sm bg-white px-6 py-4 text-sm text-[#888] shadow-sm">
           <input type="checkbox" checked={allSelected} onChange={(event) => toggleAll(event.target.checked)} className="h-5 w-5 accent-[#ee4d2d]" />
           <span>Sản Phẩm</span>
+          <span className="text-center">Loại</span>
           <span className="text-center">Đơn Giá</span>
           <span className="text-center">Số Lượng</span>
           <span className="text-center">Số Tiền</span>
@@ -146,7 +156,7 @@ export const CartPage = () => {
               </div>
 
               {items.map((item) => (
-                <div key={item.id} className="grid grid-cols-[42px_minmax(320px,1fr)_150px_150px_150px_130px] items-center border-b border-[#f0f0f0] px-6 py-7 text-sm last:border-b-0">
+                <div key={item.id} className="grid grid-cols-[42px_minmax(300px,1fr)_105px_135px_135px_145px_120px] items-center border-b border-[#f0f0f0] px-6 py-7 text-sm last:border-b-0">
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(item.id)}
@@ -170,6 +180,12 @@ export const CartPage = () => {
                       </button>
                       <p>{item.size || "N/A"},{item.color || "N/A"}</p>
                     </div>
+                  </div>
+
+                  <div className="text-center text-[#222]">
+                    <span className={item.itemType === "RENT" ? "rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700" : "rounded bg-orange-50 px-2 py-1 text-xs font-semibold text-[#ee4d2d]"}>
+                      {item.itemType === "RENT" ? `Thuê ${item.rentalDays ?? 1} ngày` : "Mua"}
+                    </span>
                   </div>
 
                   <div className="text-center text-[#222]">{formatPrice(item.price)}</div>
@@ -254,7 +270,7 @@ export const CartPage = () => {
                       <span className="text-2xl font-medium text-[#ee4d2d]">{formatPrice(selectedTotal)}</span>
                     </div>
                     <button type="button" onClick={goToCheckout} className="min-w-56 bg-[#ee4d2d] px-10 py-3 text-sm font-semibold text-white hover:bg-[#d73211]">
-                      Mua Hàng
+                      Thanh toán
                     </button>
                   </div>
                 </div>
