@@ -24,6 +24,7 @@ export interface OrderItemDTO {
     price: number;
     lineTotal: number;
     rental: boolean;
+    rentalDays?: number | null;
 }
 
 export interface OrderDTO {
@@ -88,10 +89,15 @@ export const updateOrderStatus = async (id: number, status: string): Promise<Ord
     return response.data;
 };
 
-export const checkoutCart = async (shippingAddress: string, paymentMethod: string): Promise<CheckoutResponse> => {
-  const response = await axiosClient.post("/orders/checkout", { 
+export const checkoutCart = async (
+  shippingAddress: string,
+  paymentMethod: string,
+  selectedCartItemIds: number[] = [],
+): Promise<CheckoutResponse> => {
+  const response = await axiosClient.post("/orders/checkout", {
     shippingAddress,
-    paymentMethod
+    paymentMethod,
+    selectedCartItemIds,
   });
   
   window.dispatchEvent(new Event("cartchange"));

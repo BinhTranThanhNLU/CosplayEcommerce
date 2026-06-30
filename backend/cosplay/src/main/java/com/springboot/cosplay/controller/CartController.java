@@ -35,7 +35,9 @@ public class CartController {
         return ResponseEntity.ok(cartService.addToCart(
                 currentUser(principal),
                 request.getProductVariantId(),
-                request.getQuantity()
+                request.getQuantity(),
+                request.getItemType(),
+                request.getRentalDays()
         ));
     }
 

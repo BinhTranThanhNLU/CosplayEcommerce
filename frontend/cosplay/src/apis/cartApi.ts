@@ -12,8 +12,13 @@ export const getCartCount = async (): Promise<number> => {
   return response.data;
 };
 
-export const addToCart = async (productVariantId: number, quantity = 1): Promise<CartResponse> => {
-  const response = await axiosClient.post("/cart/items", { productVariantId, quantity });
+export const addToCart = async (
+  productVariantId: number,
+  quantity = 1,
+  itemType: "SELL" | "RENT" = "SELL",
+  rentalDays?: number,
+): Promise<CartResponse> => {
+  const response = await axiosClient.post("/cart/items", { productVariantId, quantity, itemType, rentalDays });
   window.dispatchEvent(new Event("cartchange"));
   return response.data;
 };

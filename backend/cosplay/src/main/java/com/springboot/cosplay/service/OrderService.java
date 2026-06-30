@@ -87,20 +87,18 @@ public class OrderService {
     @Transactional
     public CheckoutResponse checkout(User user, CheckoutRequest request, String ipAddress) {
         Cart cart = getOrCreateCart(user);
+        List<CartItem> checkoutItems = resolveCheckoutItems(cart, request.getSelectedCartItemIds());
 
-        if (cart.getItems() == null || cart.getItems().isEmpty()) {
-            throw new BusinessException("Giỏ hàng đang trống");
-        }
-        if (request.getShippingAddress() == null || request.getShippingAddress().isBlank()) {
-            throw new BusinessException("Vui lòng nhập địa chỉ giao hàng");
-        }
+        if (checkoutItems.isEmpty()) throw new BusinessException("Giỏ hàng đang trống");
+        if (request.getShippingAddress() == null || request.getShippingAddress().trim().isEmpty()) throw new BusinessException("Vui lòng nhập địa chỉ giao hàng");
 
-        long total = cart.getItems().stream()
-                .mapToLong(item -> getItemPrice(item) * safeQuantity(item))
-                .sum();
+        boolean hasRent = checkoutItems.stream().anyMatch(item -> resolveType(item) == CartItemType.RENT);
+        boolean hasSell = checkoutItems.stream().anyMatch(item -> resolveType(item) == CartItemType.SELL);
+        if (hasRent && hasSell) throw new BusinessException("Vui lòng thanh toán đơn thuê và đơn mua riêng");
 
-        Shop shop = cart.getItems().get(0)
-                .getProductVariant().getProduct().getShop();
+        Long total = checkoutItems.stream().mapToLong(item -> getItemPrice(item) * safeQuantity(item)).sum();
+
+        Shop shop = checkoutItems.get(0).getProductVariant().getProduct().getShop();
 
         Order order = Order.builder()
                 .user(user)
@@ -113,31 +111,32 @@ public class OrderService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        List<OrderItem> orderItems = cart.getItems().stream()
-                .map(item -> OrderItem.builder()
-                        .order(order)
-                        .productVariant(item.getProductVariant())
-                        .quantity(safeQuantity(item))
-                        .price(getItemPrice(item))
-                        .rental(false)
-                        .build())
-                .toList();
+        List<OrderItem> orderItems = checkoutItems.stream().map(item -> OrderItem.builder()
+                .order(order)
+                .productVariant(item.getProductVariant())
+                .quantity(safeQuantity(item))
+                .price(getItemPrice(item))
+                .rental(resolveType(item) == CartItemType.RENT)
+                .build()).toList();
 
         order.setItems(new ArrayList<>(orderItems));
 
-        Order saved = orderRepository.save(order);
-        cartItemRepository.deleteByCart(cart);
-        cart.getItems().clear();
+        Order savedOrder = orderRepository.save(order);
+
+        checkoutItems.forEach(item -> {
+            if (cart.getItems() != null) cart.getItems().remove(item);
+            cartItemRepository.delete(item);
+        });
 
         String paymentUrl = null;
         if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
-            paymentUrl = vnPayService.createOrderUrl(saved.getId(), saved.getTotalAmount(), ipAddress);
+            paymentUrl = vnPayService.createOrderUrl(savedOrder.getId(), savedOrder.getTotalAmount(), ipAddress);
         }
 
         return CheckoutResponse.builder()
-                .orderId(saved.getId())
-                .totalAmount(saved.getTotalAmount())
-                .status(saved.getStatus().name())
+                .orderId(savedOrder.getId())
+                .totalAmount(savedOrder.getTotalAmount())
+                .status(savedOrder.getStatus().name())
                 .paymentUrl(paymentUrl)
                 .build();
     }
@@ -150,13 +149,29 @@ public class OrderService {
                         Cart.builder().user(user).items(new ArrayList<>()).build()));
     }
 
-    private int safeQuantity(CartItem item) {
-        return item.getQuantity() == null ? 0 : item.getQuantity();
+    private List<CartItem> resolveCheckoutItems(Cart cart, List<Integer> selectedCartItemIds) {
+        List<CartItem> items = cart.getItems() == null ? List.of() : cart.getItems();
+        if (selectedCartItemIds == null || selectedCartItemIds.isEmpty()) return new ArrayList<>(items);
+        return items.stream().filter(item -> selectedCartItemIds.contains(item.getId())).toList();
     }
 
+    private int safeQuantity(CartItem item) { return item.getQuantity() == null ? 0 : item.getQuantity(); }
+
+    private Integer safeRentalDays(CartItem item) { return item.getRentalDays() == null || item.getRentalDays() < 1 ? 1 : item.getRentalDays(); }
+
+    private CartItemType resolveType(CartItem item) { return item.getItemType() == null ? CartItemType.SELL : item.getItemType(); }
+
     private long getItemPrice(CartItem item) {
-        Long price = item.getProductVariant().getSalePrice();
-        return price == null ? 0L : price;
+        ProductVariant variant = item.getProductVariant();
+
+        if (resolveType(item) == CartItemType.RENT) {
+            return (variant.getRentPrice() == null ? 0L : variant.getRentPrice())
+                    * safeRentalDays(item);
+        }
+
+        return variant.getSalePrice() == null
+                ? 0L
+                : variant.getSalePrice();
     }
 
     // ─── Mapper ───────────────────────────────────────────────────────────────
@@ -201,4 +216,5 @@ public class OrderService {
                 .rental(Boolean.TRUE.equals(item.getRental()))
                 .build();
     }
+
 }
