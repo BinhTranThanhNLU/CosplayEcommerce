@@ -32,8 +32,14 @@ export const Header = () => {
   const navigate = useNavigate();
 
   const isAuthenticated = Boolean(authSession.token && authSession.user);
-  const displayName = useMemo(() => getDisplayName(authSession.user), [authSession.user]);
-  const userInitials = useMemo(() => getUserInitials(authSession.user), [authSession.user]);
+  const displayName = useMemo(
+    () => getDisplayName(authSession.user),
+    [authSession.user],
+  );
+  const userInitials = useMemo(
+    () => getUserInitials(authSession.user),
+    [authSession.user],
+  );
 
   useEffect(() => {
     const syncAuthSession = () => {
@@ -42,7 +48,6 @@ export const Header = () => {
 
     return subscribeToAuthSession(syncAuthSession);
   }, []);
-
 
   useEffect(() => {
     const loadCartCount = async () => {
@@ -76,7 +81,10 @@ export const Header = () => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
         setUserMenuOpen(false);
       }
     };
@@ -167,7 +175,9 @@ export const Header = () => {
                   <span className="truncate text-sm font-medium text-foreground">
                     {displayName}
                   </span>
-                  <span className="text-xs text-muted-foreground">Tài khoản của bạn</span>
+                  <span className="text-xs text-muted-foreground">
+                    Tài khoản của bạn
+                  </span>
                 </span>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -192,14 +202,36 @@ export const Header = () => {
 
                   <div className="p-2">
                     <Link
-                      to="/change-password"
+                      to="/profile"
                       onClick={() => setUserMenuOpen(false)}
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-muted"
                     >
                       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
                         <UserCircle2 className="h-4 w-4" />
                       </span>
-                      <span className="flex-1 text-left">Đổi mật khẩu</span>
+                      <span className="flex-1 text-left">Hồ sơ cá nhân</span>
+                    </Link>
+                    <Link
+                      to="/profile/edit"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-muted"
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        <UserCircle2 className="h-4 w-4" />
+                      </span>
+                      <span className="flex-1 text-left">
+                        Cập nhật thông tin
+                      </span>
+                    </Link>
+                    <Link
+                      to="/profile/orders"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-muted"
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        <UserCircle2 className="h-4 w-4" />
+                      </span>
+                      <span className="flex-1 text-left">Quản lý hóa đơn</span>
                     </Link>
                     <button
                       type="button"
@@ -279,7 +311,9 @@ export const Header = () => {
                       <p className="truncate text-sm font-semibold text-foreground">
                         {displayName}
                       </p>
-                      <p className="text-xs text-muted-foreground">Tài khoản của bạn</p>
+                      <p className="text-xs text-muted-foreground">
+                        Tài khoản của bạn
+                      </p>
                     </div>
                   </div>
 

@@ -41,7 +41,7 @@ public class SecurityConfig {
                         // 1. NHÓM PUBLIC (Không cần đăng nhập)
                         .requestMatchers(HttpMethod.GET, "/orders/vnpay-return").permitAll()
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/products", "/products/**", "/categories", "/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/products", "/products/**", "/categories", "/categories/**", "/reviews/product/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/error").permitAll()
 
                         // 2. Chỉ ADMIN mới truy cập được /admin/**
