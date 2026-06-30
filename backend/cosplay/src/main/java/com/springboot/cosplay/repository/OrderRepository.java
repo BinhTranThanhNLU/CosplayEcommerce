@@ -13,6 +13,14 @@ import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Integer> {
 
+    // Lấy tổng doanh thu của các đơn đã hoàn thành
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = 'COMPLETED'")
+    long sumTotalRevenue();
+
+    // Lấy các đơn hàng hoàn thành trong khoảng thời gian (để vẽ biểu đồ)
+    @Query("SELECT o FROM Order o WHERE o.status = 'COMPLETED' AND o.createdAt >= :startDate")
+    List<Order> findCompletedOrdersSince(@Param("startDate") LocalDateTime startDate);
+
     // Tìm kiếm kết hợp: keyword (id/tên khách/tên shop) + status
     @Query("""
             SELECT o FROM Order o

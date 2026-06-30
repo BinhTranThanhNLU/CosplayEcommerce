@@ -17,11 +17,12 @@ import  ProfileOrdersPage  from "./pages/user/ProfileOrdersPage";
 
 import Dashboard from "./pages/admin/Dashboard";
 import UsersPage from "./pages/admin/UsersPage";
-import SellersPage from "./pages/admin/SellersPage";
 import OrdersPage from "./pages/admin/OrdersPage";
 
 import AdminLayout from "./layouts/AdminLayout";
 import { UserLayout } from "./layouts/UserLayout";
+import AdminProductsPage from "./pages/admin/AdminProductsPage";
+import AdminShopsPage from "./pages/admin/AdminShopsPage";
 
 function App() {
   return (
@@ -49,8 +50,9 @@ function App() {
         <Route element={<AdminLayout />}>
           <Route path="admin" element={<Dashboard />} />
           <Route path="admin/users" element={<UsersPage />} />
-          <Route path="admin/sellers" element={<SellersPage />} />
           <Route path="admin/orders" element={<OrdersPage />} />
+          <Route path="admin/products" element={<AdminProductsPage />} />
+          <Route path="admin/shops" element={<AdminShopsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
