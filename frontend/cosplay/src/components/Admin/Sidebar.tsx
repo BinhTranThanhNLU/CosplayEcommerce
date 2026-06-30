@@ -8,6 +8,7 @@ import {
   Percent,
   DollarSign,
   BarChart3,
+  Package,
 } from "lucide-react";
 
 import { Link, useLocation } from "react-router-dom";
@@ -24,39 +25,24 @@ const menus = [
     path: "/admin/users",
   },
   {
-    title: "Quản lý Seller",
-    icon: Store,
-    path: "/admin/sellers",
-  },
-  {
     title: "Quản lý đơn hàng",
     icon: ShoppingCart,
     path: "/admin/orders",
   },
   {
-    title: "Quản lý hóa đơn",
-    icon: Receipt,
-    path: "/admin/invoices",
+    title: "Quản lý sản phẩm",
+    icon: Package,
+    path: "/admin/products",
   },
   {
-    title: "Quản lý danh mục",
-    icon: Grid,
-    path: "/admin/categories",
-  },
-  {
-    title: "Quản lý phí sàn",
-    icon: Percent,
-    path: "/admin/fees",
+    title: "Quản lý cửa hàng",
+    icon: Store,
+    path: "/admin/shops",
   },
   {
     title: "Quản lý doanh thu",
     icon: DollarSign,
     path: "/admin/revenue",
-  },
-  {
-    title: "Thống kê",
-    icon: BarChart3,
-    path: "/admin/stats",
   },
 ];
 
@@ -72,8 +58,7 @@ export default function Sidebar() {
 
             const active =
               pathname === item.path ||
-              (item.path !== "/admin" &&
-                pathname.startsWith(item.path));
+              (item.path !== "/admin" && pathname.startsWith(item.path));
 
             return (
               <Link
