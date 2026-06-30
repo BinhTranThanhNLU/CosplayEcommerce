@@ -9,5 +9,10 @@ export interface CartItem {
   stock: number;
   quantity: number;
   price: number;
+  salePrice: number;
+  rentPrice: number;
+  depositFee: number;
+  itemType: "SELL" | "RENT";
+  rentalDays: number | null;
   lineTotal: number;
 }

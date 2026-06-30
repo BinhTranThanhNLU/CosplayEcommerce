@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { getAllProducts, getProductById } from "../../apis/productApi";
 import { ProductGallery } from "../../components/ProductDetailComponent/ProductGallery";
 import { ProductRelated } from "../../components/ProductDetailComponent/ProductRelated";
@@ -11,6 +11,7 @@ const relatedLimit = 4;
 
 export const ProductDetailPage = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,6 +19,7 @@ export const ProductDetailPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const productId = Number(id);
+  const detailMode = searchParams.get("type")?.toUpperCase() === "RENT" ? "rent" : "buy";
 
   useEffect(() => {
     const fetchProductDetail = async () => {
@@ -112,7 +114,7 @@ export const ProductDetailPage = () => {
       {/* Main Content */}
       <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
         <ProductGallery images={galleryImages} name={product.name} />
-        <ProductInfo product={product} />
+        <ProductInfo product={product} detailMode={detailMode} />
       </div>
 
       {/* Tabs */}

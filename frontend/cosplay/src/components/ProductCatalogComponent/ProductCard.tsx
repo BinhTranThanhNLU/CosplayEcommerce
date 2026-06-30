@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { formatPrice } from "../utils/Format";
 import type { ProductModel } from "../../model/ProductModel";
 
@@ -23,13 +23,17 @@ const getPriceBounds = (product: ProductModel) => {
 };
 
 export function ProductCard({ product }: ProductCardProps) {
+  const [searchParams] = useSearchParams();
+  const currentType = searchParams.get("type")?.toUpperCase();
+  const detailHref = `/products/${product.id}${currentType === "RENT" ? "?type=RENT" : ""}`;
+  const rentHref = `/products/${product.id}?type=RENT`;
   const { minSalePrice, maxSalePrice, minRentPrice } = getPriceBounds(product);
   const hasRent = product.variants.some((variant) => variant.rentPrice > 0);
 
   if (!product) return null;
 
   return (
-    <Link to={`/products/${product.id}`} className="group flex flex-col gap-2.5">
+    <Link to={detailHref} className="group flex flex-col gap-2.5">
       {/* Khung chứa ảnh sản phẩm */}
       <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-muted">
         <img
@@ -50,12 +54,13 @@ export function ProductCard({ product }: ProductCardProps) {
                 Chi tiết
               </button>
               {hasRent && (
-                <button
-                  onClick={(e) => e.preventDefault()}
+                <Link
+                  to={rentHref}
+                  onClick={(e) => e.stopPropagation()}
                   className="flex-1 rounded-full bg-white/20 py-2 text-center text-xs font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/30"
                 >
                   Thuê
-                </button>
+                </Link>
               )}
             </div>
           </div>

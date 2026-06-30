@@ -24,6 +24,13 @@ public class CartItem {
     @Column(name = "quantity")
     private Integer quantity;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "item_type")
+    private CartItemType itemType;
+
+    @Column(name = "rental_days")
+    private Integer rentalDays;
+
     @ManyToOne
     @JoinColumn(name = "cart_id", foreignKey = @ForeignKey(name = "cart_items_ibfk_1"))
     private Cart cart;
